@@ -72,12 +72,6 @@ export function Navbar() {
                 </Link>);
 
             })}
-            <Link
-              to="/learning"
-              className="bg-primary hover:bg-accent text-white px-5 py-2 rounded-full text-sm font-medium transition-colors shadow-sm hover:shadow-md">
-              
-              Explore Platform
-            </Link>
           </div>
 
           {/* Mobile Menu Button */}
