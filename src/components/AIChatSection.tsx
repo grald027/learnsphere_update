@@ -20,7 +20,8 @@ interface ChatSession {
 
 // Groq API Configuration - Using environment variable
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+// FIXED: Properly access the environment variable
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 
 // Check if API key is configured
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
@@ -54,6 +55,8 @@ export function AIChatSection() {
   useEffect(() => {
     if (!isAPIKeyConfigured) {
       setError("⚠️ Groq API key is missing. Please add VITE_GROQ_API_KEY to your .env file");
+    } else {
+      console.log('API key configured successfully'); // Debug log (won't show the actual key)
     }
   }, []);
 
