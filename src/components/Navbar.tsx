@@ -24,7 +24,6 @@ export function Navbar() {
     { name: 'Background', href: '/background' },
     { name: 'Features', href: '/features' },
     { name: 'Learning', href: '/learning' },
-    { name: 'Prototype', href: '/prototype' },
     { name: 'AI Assistant', href: '/ai-assistant' }
   ];
 
