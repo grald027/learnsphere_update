@@ -5,7 +5,6 @@ import { PageLayout } from './components/PageLayout';
 import { HeroSection } from './components/HeroSection';
 import { BackgroundSection } from './components/BackgroundSection';
 import { FeaturesSection } from './components/FeaturesSection';
-import { PrototypeSection } from './components/PrototypeSection';
 import { AIChatSection } from './components/AIChatSection';
 import { LearningSection } from './components/LearningSection';
 export function App() {
@@ -19,7 +18,6 @@ export function App() {
               <Route path="/background" element={<BackgroundSection />} />
               <Route path="/features" element={<FeaturesSection />} />
               <Route path="/learning" element={<LearningSection />} />
-              <Route path="/prototype" element={<PrototypeSection />} />
               <Route path="/ai-assistant" element={<AIChatSection />} />
             </Routes>
           </AnimatePresence>
