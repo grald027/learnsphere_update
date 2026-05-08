@@ -1,11 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Loader2, Wifi, WifiOff, AlertCircle, Trash2, Download, Sparkles, Menu, Paperclip, FileText, X, Upload, Plus, AlertTriangle } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
-import mammoth from 'mammoth';
-
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import { Send, Bot, User, Loader2, Wifi, WifiOff, AlertCircle, Trash2, Download, Sparkles, Menu, Paperclip, FileText, X, Plus } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -34,53 +29,12 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
 
-// Helper function to extract text from different file types
+// Simple text extraction without external libraries
 const extractTextFromFile = async (file: File): Promise<string> => {
   const fileName = file.name.toLowerCase();
-  const fileType = file.type;
-
-  // Handle PDF files
-  if (fileName.endsWith('.pdf') || fileType === 'application/pdf') {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = '';
-      
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += pageText + '\n';
-      }
-      
-      return fullText.substring(0, 5000);
-    } catch (error) {
-      console.error('PDF parsing error:', error);
-      return `[PDF File: ${file.name}] - Could not extract text. The file may be scanned or image-based.`;
-    }
-  }
-
-  // Handle DOCX files
-  if (fileName.endsWith('.docx') || fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      return result.value.substring(0, 5000);
-    } catch (error) {
-      console.error('DOCX parsing error:', error);
-      return `[Word Document: ${file.name}] - Could not extract text.`;
-    }
-  }
-
-  // Handle PPT/PPTX files - Note: Full PPT parsing requires additional libraries
-  if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx') || 
-      fileType === 'application/vnd.ms-powerpoint' || 
-      fileType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-    return `[PowerPoint: ${file.name}] - For best results, please save the presentation as PDF and upload that instead. Current PPT parsing has limited support.`;
-  }
-
-  // Handle text files
-  if (fileName.endsWith('.txt') || fileName.endsWith('.md') || fileType === 'text/plain') {
+  
+  // For text files - works immediately
+  if (fileName.endsWith('.txt') || fileName.endsWith('.md') || file.type === 'text/plain') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve((reader.result as string).substring(0, 5000));
@@ -88,8 +42,23 @@ const extractTextFromFile = async (file: File): Promise<string> => {
       reader.readAsText(file);
     });
   }
-
-  return `[${file.name}] - This file type may not be fully supported. Try converting to PDF or TXT for better results.`;
+  
+  // For PDF - fallback message
+  if (fileName.endsWith('.pdf')) {
+    return `[PDF Document: ${file.name}]\n\nNote: PDF text extraction requires additional setup. For now, please convert your PDF to text or upload a TXT file. The file "${file.name}" is ${(file.size / 1024).toFixed(2)} KB in size.`;
+  }
+  
+  // For DOCX - fallback message  
+  if (fileName.endsWith('.docx')) {
+    return `[Word Document: ${file.name}]\n\nNote: DOCX text extraction requires additional setup. For now, please convert your document to TXT format or paste the content directly. The file "${file.name}" is ${(file.size / 1024).toFixed(2)} KB in size.`;
+  }
+  
+  // For PPT/PPTX
+  if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
+    return `[PowerPoint: ${file.name}]\n\nFor best results, please save your presentation as PDF or TXT and upload that instead. The file "${file.name}" is ${(file.size / 1024).toFixed(2)} KB in size.`;
+  }
+  
+  return `[File: ${file.name}]\n\nFile size: ${(file.size / 1024).toFixed(2)} KB\n\nTo analyze this file, please convert it to TXT format or paste the content directly.`;
 };
 
 export function AIChatSection() {
@@ -109,10 +78,19 @@ export function AIChatSection() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load sessions on mount
   useEffect(() => {
     loadAllData();
   }, []);
 
+  // Save sessions whenever messages change
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0) {
+      saveCurrentMessages(messages);
+    }
+  }, [messages, currentSessionId]);
+
+  // Online/offline detection
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -131,11 +109,14 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
+      // Load sessions
       const savedSessions = localStorage.getItem('learnsphere_chat_sessions');
       if (savedSessions) {
-        setSessions(JSON.parse(savedSessions));
+        const parsed = JSON.parse(savedSessions);
+        setSessions(parsed);
       }
       
+      // Load current session
       const savedCurrent = localStorage.getItem('learnsphere_current_session');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
@@ -154,7 +135,7 @@ export function AIChatSection() {
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm your LearnSphere AI tutor.\n\nI can help you with:\n- Programming concepts\n- Data structures and algorithms\n- Web development\n- Computer science fundamentals\n\nYou can also upload PDF, DOCX, or TXT files and I'll help summarize or explain them.\n\nWhat would you like to learn today?",
+      text: "Hello! I'm your LearnSphere AI tutor.\n\nI can help you with:\n- Programming concepts\n- Data structures and algorithms\n- Web development\n- Computer science fundamentals\n\nYou can also upload TXT files and I'll help summarize or explain them.\n\nWhat would you like to learn today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now()
     };
@@ -184,22 +165,35 @@ export function AIChatSection() {
   const saveCurrentMessages = (updatedMessages: Message[]) => {
     if (!currentSessionId) return;
     
-    const existingSession = sessions.find(s => s.id === currentSessionId);
-    if (existingSession) {
+    // Find existing session
+    const existingSessionIndex = sessions.findIndex(s => s.id === currentSessionId);
+    
+    if (existingSessionIndex !== -1) {
       const updatedSession = {
-        ...existingSession,
+        ...sessions[existingSessionIndex],
         messages: updatedMessages,
         lastModified: Date.now(),
         title: updatedMessages.length > 1 && updatedMessages[1]?.text 
           ? updatedMessages[1].text.substring(0, 30) + '...' 
-          : existingSession.title
+          : sessions[existingSessionIndex].title
       };
-      const updatedSessions = sessions.map(s => s.id === currentSessionId ? updatedSession : s);
+      const updatedSessions = [...sessions];
+      updatedSessions[existingSessionIndex] = updatedSession;
+      setSessions(updatedSessions);
+      localStorage.setItem('learnsphere_chat_sessions', JSON.stringify(updatedSessions));
+    } else {
+      const newSession: ChatSession = {
+        id: currentSessionId,
+        title: `Chat ${new Date().toLocaleDateString()}`,
+        messages: updatedMessages,
+        createdAt: Date.now(),
+        lastModified: Date.now()
+      };
+      const updatedSessions = [newSession, ...sessions];
       setSessions(updatedSessions);
       localStorage.setItem('learnsphere_chat_sessions', JSON.stringify(updatedSessions));
     }
     
-    setMessages([...updatedMessages]);
     localStorage.setItem('learnsphere_current_session', JSON.stringify({
       id: currentSessionId,
       messages: updatedMessages
@@ -250,7 +244,7 @@ export function AIChatSection() {
     let systemPrompt = `You are LearnSphere AI Tutor. Provide clean, helpful responses for computer science students. Keep responses concise and educational. Use bullet points with dashes. Keep paragraphs short.`;
 
     if (fileContent) {
-      systemPrompt += `\n\nThe student has uploaded a file. Here is the content:\n\n${fileContent}\n\nPlease help them understand this material.`;
+      systemPrompt += `\n\nThe student has uploaded a file. Here is the content:\n\n${fileContent}\n\nPlease help them understand this material. Summarize key points and answer their questions.`;
     }
 
     const requestBody = {
@@ -317,11 +311,9 @@ export function AIChatSection() {
       timestamp: Date.now()
     };
     
-    setMessages(prev => {
-      const updated = [...prev, newUserMessage];
-      saveCurrentMessages(updated);
-      return updated;
-    });
+    const updatedMessages = [...messages, newUserMessage];
+    setMessages(updatedMessages);
+    saveCurrentMessages(updatedMessages);
     
     const filesToProcess = [...pendingFiles];
     setInputValue('');
@@ -335,16 +327,6 @@ export function AIChatSection() {
       if (isOnline && isAPIKeyConfigured && filesToProcess.length > 0) {
         setIsProcessingFile(true);
         
-        // Show processing message
-        const processingMsg: Message = {
-          id: Date.now().toString(),
-          type: 'ai',
-          text: `Processing ${filesToProcess.length} file(s)... Please wait.`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          timestamp: Date.now()
-        };
-        setMessages(prev => [...prev, processingMsg]);
-        
         // Extract text from files
         let combinedContent = '';
         for (const pendingFile of filesToProcess) {
@@ -356,29 +338,19 @@ export function AIChatSection() {
           }
         }
         
-        // Remove processing message
-        setMessages(prev => prev.filter(m => m.id !== processingMsg.id));
-        
         if (combinedContent.trim() && combinedContent.length > 100) {
           aiResponse = await callGroqAPI(userCaption || "Please summarize this document and explain the key concepts.", combinedContent);
         } else {
-          aiResponse = `I received your file(s) but couldn't extract readable text. This can happen with:
+          aiResponse = `I received your file(s) but couldn't extract readable text. 
 
-- Image-based PDFs (scanned documents)
-- Corrupted files
-- Unsupported file formats
-
-For best results, please:
-1. Use text-based PDFs (not scanned)
-2. Use DOCX files with actual text
-3. Upload plain text (.txt) files
+For best results, please upload a TEXT (.txt) file. 
 
 What specific topic would you like help with?`;
         }
       } else if (isOnline && isAPIKeyConfigured) {
         aiResponse = await callGroqAPI(userCaption, undefined);
       } else if (!isOnline) {
-        aiResponse = "I'm in offline mode. Please connect to the internet for AI-powered assistance. I can still help with basic computer science concepts though! What would you like to know?";
+        aiResponse = "I'm in offline mode. Please connect to the internet for AI-powered assistance.";
       } else {
         aiResponse = "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.";
       }
@@ -391,11 +363,9 @@ What specific topic would you like help with?`;
         timestamp: Date.now()
       };
       
-      setMessages(prev => {
-        const updated = [...prev, newAiMessage];
-        saveCurrentMessages(updated);
-        return updated;
-      });
+      const finalMessages = [...updatedMessages, newAiMessage];
+      setMessages(finalMessages);
+      saveCurrentMessages(finalMessages);
       
     } catch (error) {
       console.error('Send message error:', error);
@@ -409,11 +379,9 @@ What specific topic would you like help with?`;
         timestamp: Date.now()
       };
       
-      setMessages(prev => {
-        const updated = [...prev, errorMessage];
-        saveCurrentMessages(updated);
-        return updated;
-      });
+      const finalMessages = [...updatedMessages, errorMessage];
+      setMessages(finalMessages);
+      saveCurrentMessages(finalMessages);
       
       setTimeout(() => setError(null), 5000);
     } finally {
@@ -434,10 +402,6 @@ What specific topic would you like help with?`;
     if (session) {
       setMessages([...session.messages]);
       setCurrentSessionId(session.id);
-      localStorage.setItem('learnsphere_current_session', JSON.stringify({
-        id: session.id,
-        messages: session.messages
-      }));
       setShowHistory(false);
       setPendingFiles([]);
     }
@@ -492,7 +456,7 @@ What specific topic would you like help with?`;
               className="hidden md:block overflow-hidden"
             >
               <div className="w-72 bg-white rounded-2xl shadow-xl border h-[calc(100vh-140px)] overflow-y-auto">
-                <div className="p-4 border-b">
+                <div className="p-4 border-b sticky top-0 bg-white">
                   <h3 className="font-semibold">Chat History</h3>
                   <p className="text-xs text-gray-500">{sessions.length} conversations</p>
                 </div>
@@ -519,6 +483,7 @@ What specific topic would you like help with?`;
                           <p className="text-xs text-gray-400">
                             {new Date(session.lastModified).toLocaleDateString()}
                           </p>
+                          <p className="text-xs text-gray-400">{session.messages.length} messages</p>
                         </div>
                         <button
                           onClick={(e) => deleteSession(session.id, e)}
@@ -583,29 +548,39 @@ What specific topic would you like help with?`;
 
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`flex max-w-[80%] ${msg.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    msg.type === 'user' ? 'bg-primary/20 ml-3' : 'bg-primary/10 mr-3'
-                  }`}>
-                    {msg.type === 'user' ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
-                  </div>
-                  <div>
-                    <div className={`px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap ${
-                      msg.type === 'user' 
-                        ? 'bg-primary text-white rounded-tr-none' 
-                        : 'bg-white text-gray-700 rounded-tl-none border shadow-sm'
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Bot className="w-16 h-16 text-gray-300 mb-4" />
+                <h3 className="text-lg font-semibold text-dark mb-2">Start a conversation</h3>
+                <p className="text-gray-400 text-sm max-w-md">
+                  Ask me anything about computer science, programming, or upload a TXT file for me to analyze!
+                </p>
+              </div>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`flex max-w-[80%] ${msg.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      msg.type === 'user' ? 'bg-primary/20 ml-3' : 'bg-primary/10 mr-3'
                     }`}>
-                      {msg.text}
+                      {msg.type === 'user' ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
                     </div>
-                    <span className={`text-[10px] text-gray-400 mt-1 block ${msg.type === 'user' ? 'text-right' : 'text-left'}`}>
-                      {msg.time}
-                    </span>
+                    <div>
+                      <div className={`px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap ${
+                        msg.type === 'user' 
+                          ? 'bg-primary text-white rounded-tr-none' 
+                          : 'bg-white text-gray-700 rounded-tl-none border shadow-sm'
+                      }`}>
+                        {msg.text}
+                      </div>
+                      <span className={`text-[10px] text-gray-400 mt-1 block ${msg.type === 'user' ? 'text-right' : 'text-left'}`}>
+                        {msg.time}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
 
             {isTyping && (
               <div className="flex justify-start">
@@ -681,16 +656,16 @@ What specific topic would you like help with?`;
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.docx,.txt,.md"
+                    accept=".txt,.md"
                     onChange={handleFileSelect}
                     className="hidden"
                     multiple
                   />
                   <div className="bg-white border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50">
                     <Plus className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">Click to select files</p>
-                    <p className="text-xs text-gray-400 mt-1">Supported: PDF, DOCX, TXT (Max 10MB each)</p>
-                    <p className="text-xs text-blue-500 mt-2">Note: For best results, use text-based PDFs (not scanned images)</p>
+                    <p className="text-sm text-gray-600">Click to select TXT files</p>
+                    <p className="text-xs text-gray-400 mt-1">Supported: TXT files only (Max 10MB each)</p>
+                    <p className="text-xs text-blue-500 mt-2">Tip: For PDF/DOCX, please convert to TXT first</p>
                   </div>
                 </label>
               </div>
@@ -698,7 +673,7 @@ What specific topic would you like help with?`;
             
             <p className="text-xs text-gray-400 text-center mt-2">
               {isOnline && isAPIKeyConfigured 
-                ? "Powered by Groq AI" 
+                ? "Powered by Groq AI | Upload TXT files for analysis" 
                 : !isAPIKeyConfigured ? "Add VITE_GROQ_API_KEY to .env file" : "Connect to internet for AI features"}
             </p>
           </div>
