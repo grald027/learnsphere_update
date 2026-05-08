@@ -33,7 +33,6 @@ const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_
 const extractTextFromFile = async (file: File): Promise<string> => {
   const fileName = file.name.toLowerCase();
   
-  // For text files - works immediately
   if (fileName.endsWith('.txt') || fileName.endsWith('.md') || file.type === 'text/plain') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -43,22 +42,15 @@ const extractTextFromFile = async (file: File): Promise<string> => {
     });
   }
   
-  // For PDF - fallback message
   if (fileName.endsWith('.pdf')) {
-    return `[PDF Document: ${file.name}]\n\nNote: PDF text extraction requires additional setup. For now, please convert your PDF to text or upload a TXT file. The file "${file.name}" is ${(file.size / 1024).toFixed(2)} KB in size.`;
+    return `[PDF Document: ${file.name}]\n\nNote: For best results, please convert this PDF to TXT format. File size: ${(file.size / 1024).toFixed(2)} KB`;
   }
   
-  // For DOCX - fallback message  
   if (fileName.endsWith('.docx')) {
-    return `[Word Document: ${file.name}]\n\nNote: DOCX text extraction requires additional setup. For now, please convert your document to TXT format or paste the content directly. The file "${file.name}" is ${(file.size / 1024).toFixed(2)} KB in size.`;
+    return `[Word Document: ${file.name}]\n\nNote: For best results, please convert this DOCX to TXT format. File size: ${(file.size / 1024).toFixed(2)} KB`;
   }
   
-  // For PPT/PPTX
-  if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
-    return `[PowerPoint: ${file.name}]\n\nFor best results, please save your presentation as PDF or TXT and upload that instead. The file "${file.name}" is ${(file.size / 1024).toFixed(2)} KB in size.`;
-  }
-  
-  return `[File: ${file.name}]\n\nFile size: ${(file.size / 1024).toFixed(2)} KB\n\nTo analyze this file, please convert it to TXT format or paste the content directly.`;
+  return `[File: ${file.name}]\n\nFile size: ${(file.size / 1024).toFixed(2)} KB\n\nTo analyze this file, please convert it to TXT format.`;
 };
 
 export function AIChatSection() {
@@ -82,13 +74,6 @@ export function AIChatSection() {
   useEffect(() => {
     loadAllData();
   }, []);
-
-  // Save sessions whenever messages change
-  useEffect(() => {
-    if (currentSessionId && messages.length > 0) {
-      saveCurrentMessages(messages);
-    }
-  }, [messages, currentSessionId]);
 
   // Online/offline detection
   useEffect(() => {
@@ -165,7 +150,6 @@ export function AIChatSection() {
   const saveCurrentMessages = (updatedMessages: Message[]) => {
     if (!currentSessionId) return;
     
-    // Find existing session
     const existingSessionIndex = sessions.findIndex(s => s.id === currentSessionId);
     
     if (existingSessionIndex !== -1) {
@@ -240,19 +224,39 @@ export function AIChatSection() {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const callGroqAPI = async (userMessage: string, fileContent?: string): Promise<string> => {
-    let systemPrompt = `You are LearnSphere AI Tutor. Provide clean, helpful responses for computer science students. Keep responses concise and educational. Use bullet points with dashes. Keep paragraphs short.`;
+  // FIXED: This function now sends the FULL conversation history
+  const callGroqAPI = async (userMessage: string, chatHistory: Message[], fileContent?: string): Promise<string> => {
+    // Build conversation history for context
+    const conversationMessages = [
+      {
+        role: "system",
+        content: `You are LearnSphere AI Tutor. Provide clean, helpful responses for computer science students. Keep responses concise and educational. Use bullet points with dashes. Keep paragraphs short. Be friendly and helpful. Remember previous conversations to provide context.`
+      }
+    ];
 
-    if (fileContent) {
-      systemPrompt += `\n\nThe student has uploaded a file. Here is the content:\n\n${fileContent}\n\nPlease help them understand this material. Summarize key points and answer their questions.`;
+    // Add the last 10 messages for context (so the AI remembers previous conversation)
+    const recentMessages = chatHistory.slice(-10);
+    for (const msg of recentMessages) {
+      conversationMessages.push({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      });
     }
+
+    // Add file content if present
+    let finalUserMessage = userMessage;
+    if (fileContent) {
+      finalUserMessage = `The student has uploaded a file with this content:\n\n${fileContent}\n\nTheir question is: ${userMessage || "Please summarize this document and explain the key concepts."}`;
+    }
+
+    conversationMessages.push({
+      role: "user",
+      content: finalUserMessage
+    });
 
     const requestBody = {
       model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage || "Please help me understand this material." }
-      ],
+      messages: conversationMessages,
       temperature: 0.7,
       max_tokens: 800
     };
@@ -339,7 +343,8 @@ export function AIChatSection() {
         }
         
         if (combinedContent.trim() && combinedContent.length > 100) {
-          aiResponse = await callGroqAPI(userCaption || "Please summarize this document and explain the key concepts.", combinedContent);
+          // Pass the FULL chat history for context
+          aiResponse = await callGroqAPI(userCaption || "Please summarize this document and explain the key concepts.", updatedMessages, combinedContent);
         } else {
           aiResponse = `I received your file(s) but couldn't extract readable text. 
 
@@ -348,7 +353,8 @@ For best results, please upload a TEXT (.txt) file.
 What specific topic would you like help with?`;
         }
       } else if (isOnline && isAPIKeyConfigured) {
-        aiResponse = await callGroqAPI(userCaption, undefined);
+        // Pass the FULL chat history for context
+        aiResponse = await callGroqAPI(userCaption, updatedMessages, undefined);
       } else if (!isOnline) {
         aiResponse = "I'm in offline mode. Please connect to the internet for AI-powered assistance.";
       } else {
