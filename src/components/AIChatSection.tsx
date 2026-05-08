@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Loader2, Wifi, WifiOff, AlertCircle, Trash2, Download, Sparkles, Menu, Paperclip, FileText, X, Upload, Plus } from 'lucide-react';
+import { Send, Bot, User, Loader2, Wifi, WifiOff, AlertCircle, Trash2, Download, Sparkles, Menu, Paperclip, FileText, X, Upload, Plus, AlertTriangle } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Message {
   id: string;
@@ -22,11 +27,70 @@ interface PendingFile {
   file: File;
   name: string;
   size: number;
+  type: string;
 }
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
+
+// Helper function to extract text from different file types
+const extractTextFromFile = async (file: File): Promise<string> => {
+  const fileName = file.name.toLowerCase();
+  const fileType = file.type;
+
+  // Handle PDF files
+  if (fileName.endsWith('.pdf') || fileType === 'application/pdf') {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+      
+      return fullText.substring(0, 5000);
+    } catch (error) {
+      console.error('PDF parsing error:', error);
+      return `[PDF File: ${file.name}] - Could not extract text. The file may be scanned or image-based.`;
+    }
+  }
+
+  // Handle DOCX files
+  if (fileName.endsWith('.docx') || fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return result.value.substring(0, 5000);
+    } catch (error) {
+      console.error('DOCX parsing error:', error);
+      return `[Word Document: ${file.name}] - Could not extract text.`;
+    }
+  }
+
+  // Handle PPT/PPTX files - Note: Full PPT parsing requires additional libraries
+  if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx') || 
+      fileType === 'application/vnd.ms-powerpoint' || 
+      fileType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+    return `[PowerPoint: ${file.name}] - For best results, please save the presentation as PDF and upload that instead. Current PPT parsing has limited support.`;
+  }
+
+  // Handle text files
+  if (fileName.endsWith('.txt') || fileName.endsWith('.md') || fileType === 'text/plain') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).substring(0, 5000));
+      reader.onerror = () => reject(new Error('Failed to read text file'));
+      reader.readAsText(file);
+    });
+  }
+
+  return `[${file.name}] - This file type may not be fully supported. Try converting to PDF or TXT for better results.`;
+};
 
 export function AIChatSection() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -39,6 +103,7 @@ export function AIChatSection() {
   const [showHistory, setShowHistory] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +154,7 @@ export function AIChatSection() {
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm your LearnSphere AI tutor. I can help you with programming, data structures, web development, and computer science topics. You can also attach PDF, DOCX, or PPT files for me to help you study. What would you like to learn today?",
+      text: "Hello! I'm your LearnSphere AI tutor.\n\nI can help you with:\n- Programming concepts\n- Data structures and algorithms\n- Web development\n- Computer science fundamentals\n\nYou can also upload PDF, DOCX, or TXT files and I'll help summarize or explain them.\n\nWhat would you like to learn today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now()
     };
@@ -166,7 +231,8 @@ export function AIChatSection() {
       setPendingFiles(prev => [...prev, {
         file,
         name: file.name,
-        size: file.size
+        size: file.size,
+        type: file.type
       }]);
     }
     
@@ -180,23 +246,11 @@ export function AIChatSection() {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const content = reader.result as string;
-        resolve(content.substring(0, 2000));
-      };
-      reader.onerror = () => resolve(`Could not read file: ${file.name}`);
-      reader.readAsText(file);
-    });
-  };
-
-  const callGroqAPI = async (userMessage: string, fileContext?: string): Promise<string> => {
+  const callGroqAPI = async (userMessage: string, fileContent?: string): Promise<string> => {
     let systemPrompt = `You are LearnSphere AI Tutor. Provide clean, helpful responses for computer science students. Keep responses concise and educational. Use bullet points with dashes. Keep paragraphs short.`;
 
-    if (fileContext) {
-      systemPrompt += `\n\nThe student has uploaded a file with this content: ${fileContext}. Help them understand this material.`;
+    if (fileContent) {
+      systemPrompt += `\n\nThe student has uploaded a file. Here is the content:\n\n${fileContent}\n\nPlease help them understand this material.`;
     }
 
     const requestBody = {
@@ -206,7 +260,7 @@ export function AIChatSection() {
         { role: "user", content: userMessage || "Please help me understand this material." }
       ],
       temperature: 0.7,
-      max_tokens: 600
+      max_tokens: 800
     };
 
     try {
@@ -238,7 +292,7 @@ export function AIChatSection() {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if ((!inputValue.trim() && pendingFiles.length === 0) || isTyping) return;
+    if ((!inputValue.trim() && pendingFiles.length === 0) || isTyping || isProcessingFile) return;
     
     const userCaption = inputValue.trim();
     const hasFiles = pendingFiles.length > 0;
@@ -279,15 +333,52 @@ export function AIChatSection() {
       let aiResponse: string;
       
       if (isOnline && isAPIKeyConfigured && filesToProcess.length > 0) {
-        const fileContents = await Promise.all(
-          filesToProcess.map(f => readFileContent(f.file))
-        );
-        const combinedContent = fileContents.join('\n\n---\n\n');
-        aiResponse = await callGroqAPI(userCaption || "Please explain this material to me.", combinedContent);
+        setIsProcessingFile(true);
+        
+        // Show processing message
+        const processingMsg: Message = {
+          id: Date.now().toString(),
+          type: 'ai',
+          text: `Processing ${filesToProcess.length} file(s)... Please wait.`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, processingMsg]);
+        
+        // Extract text from files
+        let combinedContent = '';
+        for (const pendingFile of filesToProcess) {
+          try {
+            const extractedText = await extractTextFromFile(pendingFile.file);
+            combinedContent += `\n\n--- ${pendingFile.name} ---\n\n${extractedText}`;
+          } catch (err) {
+            combinedContent += `\n\n--- ${pendingFile.name} ---\n[Could not extract text from this file]`;
+          }
+        }
+        
+        // Remove processing message
+        setMessages(prev => prev.filter(m => m.id !== processingMsg.id));
+        
+        if (combinedContent.trim() && combinedContent.length > 100) {
+          aiResponse = await callGroqAPI(userCaption || "Please summarize this document and explain the key concepts.", combinedContent);
+        } else {
+          aiResponse = `I received your file(s) but couldn't extract readable text. This can happen with:
+
+- Image-based PDFs (scanned documents)
+- Corrupted files
+- Unsupported file formats
+
+For best results, please:
+1. Use text-based PDFs (not scanned)
+2. Use DOCX files with actual text
+3. Upload plain text (.txt) files
+
+What specific topic would you like help with?`;
+        }
       } else if (isOnline && isAPIKeyConfigured) {
         aiResponse = await callGroqAPI(userCaption, undefined);
       } else if (!isOnline) {
-        aiResponse = "I'm in offline mode. For the best experience, please connect to the internet. I can still help with basic computer science concepts though! What would you like to know?";
+        aiResponse = "I'm in offline mode. Please connect to the internet for AI-powered assistance. I can still help with basic computer science concepts though! What would you like to know?";
       } else {
         aiResponse = "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.";
       }
@@ -313,7 +404,7 @@ export function AIChatSection() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: "I'm having trouble connecting right now. Please check your internet connection and try again.",
+        text: "I'm having trouble processing your request. Please check your internet connection and try again.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timestamp: Date.now()
       };
@@ -327,6 +418,7 @@ export function AIChatSection() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsTyping(false);
+      setIsProcessingFile(false);
     }
   };
 
@@ -564,12 +656,12 @@ export function AIChatSection() {
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder={pendingFiles.length > 0 ? "Add a message (optional)..." : "Ask me anything..."}
                 className="flex-1 bg-transparent border-none focus:outline-none text-sm"
-                disabled={isTyping}
+                disabled={isTyping || isProcessingFile}
               />
               
               <button
                 type="submit"
-                disabled={(!inputValue.trim() && pendingFiles.length === 0) || isTyping}
+                disabled={(!inputValue.trim() && pendingFiles.length === 0) || isTyping || isProcessingFile}
                 className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white ml-2 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
@@ -589,7 +681,7 @@ export function AIChatSection() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.docx,.doc,.ppt,.pptx,.txt"
+                    accept=".pdf,.docx,.txt,.md"
                     onChange={handleFileSelect}
                     className="hidden"
                     multiple
@@ -597,7 +689,8 @@ export function AIChatSection() {
                   <div className="bg-white border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50">
                     <Plus className="w-6 h-6 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-gray-600">Click to select files</p>
-                    <p className="text-xs text-gray-400">PDF, DOCX, PPT, TXT (Max 10MB each)</p>
+                    <p className="text-xs text-gray-400 mt-1">Supported: PDF, DOCX, TXT (Max 10MB each)</p>
+                    <p className="text-xs text-blue-500 mt-2">Note: For best results, use text-based PDFs (not scanned images)</p>
                   </div>
                 </label>
               </div>
@@ -606,7 +699,7 @@ export function AIChatSection() {
             <p className="text-xs text-gray-400 text-center mt-2">
               {isOnline && isAPIKeyConfigured 
                 ? "Powered by Groq AI" 
-                : "Add VITE_GROQ_API_KEY to .env file"}
+                : !isAPIKeyConfigured ? "Add VITE_GROQ_API_KEY to .env file" : "Connect to internet for AI features"}
             </p>
           </div>
         </div>
