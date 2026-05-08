@@ -120,7 +120,7 @@ export function AIChatSection() {
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm your LearnSphere AI tutor.\n\nI can help you with:\n- Programming concepts\n- Data structures and algorithms\n- Web development\n- Computer science fundamentals\n\nYou can also upload TXT files and I'll help summarize or explain them.\n\nWhat would you like to learn today?",
+      text: "Hello! I'm Sphere, your AI learning assistant.\n\nI can help you with:\n- Programming concepts\n- Data structures and algorithms\n- Web development\n- Computer science fundamentals\n\nYou can also upload TXT files and I'll help summarize or explain them.\n\nWhat would you like to learn today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now()
     };
@@ -230,7 +230,7 @@ export function AIChatSection() {
     const conversationMessages = [
       {
         role: "system",
-        content: `You are LearnSphere AI Tutor. Provide clean, helpful responses for computer science students. Keep responses concise and educational. Use bullet points with dashes. Keep paragraphs short. Be friendly and helpful. Remember previous conversations to provide context.`
+        content: `You are Sphere, an AI learning assistant for LearnSphere. Provide clean, helpful responses for computer science students. Keep responses concise and educational. Use bullet points with dashes. Keep paragraphs short. Be friendly and helpful. Remember previous conversations to provide context.`
       }
     ];
 
@@ -515,7 +515,7 @@ What specific topic would you like help with?`;
                 <Bot className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-white font-semibold">LearnSphere AI Tutor</h3>
+                <h3 className="text-white font-semibold">Sphere</h3>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-white/80">
                     {isOnline && isAPIKeyConfigured ? 'Online' : !isAPIKeyConfigured ? 'API Key Missing' : 'Offline'}
@@ -557,9 +557,9 @@ What specific topic would you like help with?`;
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Bot className="w-16 h-16 text-gray-300 mb-4" />
-                <h3 className="text-lg font-semibold text-dark mb-2">Start a conversation</h3>
+                <h3 className="text-lg font-semibold text-dark mb-2">Start a conversation with Sphere</h3>
                 <p className="text-gray-400 text-sm max-w-md">
-                  Ask me anything about computer science, programming, or upload a TXT file for me to analyze!
+                  Ask Sphere anything about computer science, programming, or upload a TXT file for analysis!
                 </p>
               </div>
             ) : (
@@ -596,7 +596,7 @@ What specific topic would you like help with?`;
                   </div>
                   <div className="px-4 py-3 rounded-2xl bg-white shadow-sm flex items-center gap-2">
                     <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                    <span className="text-xs text-gray-500">Thinking...</span>
+                    <span className="text-xs text-gray-500">Sphere is thinking...</span>
                   </div>
                 </div>
               </div>
@@ -635,7 +635,7 @@ What specific topic would you like help with?`;
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder={pendingFiles.length > 0 ? "Add a message (optional)..." : "Ask me anything..."}
+                placeholder={pendingFiles.length > 0 ? "Add a message (optional)..." : "Ask Sphere anything..."}
                 className="flex-1 bg-transparent border-none focus:outline-none text-sm"
                 disabled={isTyping || isProcessingFile}
               />
@@ -679,7 +679,7 @@ What specific topic would you like help with?`;
             
             <p className="text-xs text-gray-400 text-center mt-2">
               {isOnline && isAPIKeyConfigured 
-                ? "Powered by Groq AI | Upload TXT files for analysis" 
+                ? "Sphere is powered by Groq AI | Upload TXT files for analysis" 
                 : !isAPIKeyConfigured ? "Add VITE_GROQ_API_KEY to .env file" : "Connect to internet for AI features"}
             </p>
           </div>
