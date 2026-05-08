@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Wifi, Cpu, Zap, Users, Globe, CheckCircle, AlertTriangle } from 'lucide-react';
 
+// Simplified version without complex icons that might cause issues
 export function BackgroundSection() {
   return (
     <section className="py-20 bg-white min-h-[calc(100vh-80px)]">
@@ -16,8 +16,7 @@ export function BackgroundSection() {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full mb-6">
-            <BookOpen className="w-4 h-4 text-primary" />
-            <span className="text-sm text-primary font-medium">Research Background</span>
+            <span className="text-sm text-primary font-medium">📚 Research Background</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-dark mb-4">
             Background & Rationale
@@ -33,7 +32,7 @@ export function BackgroundSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="prose prose-lg max-w-none mb-12"
+          className="mb-12"
         >
           <p className="text-gray-600 leading-relaxed text-lg">
             The rapid advancement of digital technologies has transformed education, enabling broader access to learning resources. 
@@ -52,17 +51,17 @@ export function BackgroundSection() {
           className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16"
         >
           <div className="bg-red-50 rounded-2xl p-6 text-center border border-red-100">
-            <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+            <div className="text-4xl mb-2">⚠️</div>
             <div className="text-3xl font-bold text-red-600 mb-2">3.7B+</div>
             <p className="text-gray-600 text-sm">People lack internet access globally</p>
           </div>
           <div className="bg-yellow-50 rounded-2xl p-6 text-center border border-yellow-100">
-            <WifiOff className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
+            <div className="text-4xl mb-2">📡</div>
             <div className="text-3xl font-bold text-yellow-600 mb-2">Digital Divide</div>
             <p className="text-gray-600 text-sm">Exacerbates educational inequalities worldwide</p>
           </div>
           <div className="bg-blue-50 rounded-2xl p-6 text-center border border-blue-100">
-            <Cpu className="w-10 h-10 text-blue-500 mx-auto mb-3" />
+            <div className="text-4xl mb-2">🤖</div>
             <div className="text-3xl font-bold text-blue-600 mb-2">AI + Offline</div>
             <p className="text-gray-600 text-sm">The future of inclusive education</p>
           </div>
@@ -80,13 +79,13 @@ export function BackgroundSection() {
             className="bg-gray-50 rounded-2xl p-8 border border-gray-100"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                <WifiOff className="w-6 h-6 text-red-500" />
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">
+                📡
               </div>
               <h2 className="text-2xl font-bold text-dark">The Persistent Digital Divide</h2>
             </div>
             
-            <div className="prose prose-gray max-w-none">
+            <div>
               <p className="text-gray-600 leading-relaxed">
                 The digital divide extends beyond mere internet connectivity. According to Hafeez et al. (2022), 
                 effective online learning depends on quality assurance indicators including structured course design, 
@@ -102,8 +101,7 @@ export function BackgroundSection() {
               </p>
               <div className="mt-4 p-4 bg-red-50 rounded-xl border-l-4 border-red-400">
                 <p className="text-red-700 text-sm font-medium">
-                  <strong>Key Insight:</strong> {" "}
-                  Access to online platforms alone does not guarantee meaningful learning experiences — Hafeez et al. (2022)
+                  <strong>Key Insight:</strong> Access to online platforms alone does not guarantee meaningful learning experiences — Hafeez et al. (2022)
                 </p>
               </div>
             </div>
@@ -118,13 +116,13 @@ export function BackgroundSection() {
             className="bg-primary/5 rounded-2xl p-8 border border-primary/10"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-                <Zap className="w-6 h-6 text-primary" />
+              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center text-2xl">
+                ⚡
               </div>
               <h2 className="text-2xl font-bold text-dark">Why Offline-First Architecture?</h2>
             </div>
             
-            <div className="prose prose-gray max-w-none">
+            <div>
               <p className="text-gray-600 leading-relaxed">
                 Rizvi et al. (2025) investigated adaptive learning technologies and concluded that while AI enhances 
                 student engagement and retention, these systems rely heavily on cloud-based infrastructure and stable 
@@ -139,12 +137,12 @@ export function BackgroundSection() {
               </p>
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl p-4 border">
-                  <CheckCircle className="w-5 h-5 text-green-500 mb-2" />
+                  <div className="text-green-500 text-xl mb-2">✓</div>
                   <h4 className="font-semibold text-dark mb-1">Offline Access</h4>
                   <p className="text-sm text-gray-500">Learn anytime, anywhere without internet</p>
                 </div>
                 <div className="bg-white rounded-xl p-4 border">
-                  <CheckCircle className="w-5 h-5 text-green-500 mb-2" />
+                  <div className="text-green-500 text-xl mb-2">✓</div>
                   <h4 className="font-semibold text-dark mb-1">Local AI Assistant</h4>
                   <p className="text-sm text-gray-500">Smart tutoring without cloud dependence</p>
                 </div>
@@ -161,13 +159,13 @@ export function BackgroundSection() {
             className="bg-gray-50 rounded-2xl p-8 border border-gray-100"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Cpu className="w-6 h-6 text-purple-500" />
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl">
+                🧠
               </div>
               <h2 className="text-2xl font-bold text-dark">AI-Powered Personalized Learning</h2>
             </div>
             
-            <div className="prose prose-gray max-w-none">
+            <div>
               <p className="text-gray-600 leading-relaxed">
                 Polat (2024) examined the role of learner readiness, resilience, and engagement in online education success. 
                 The study found that factors such as digital literacy, self-regulation, and motivation significantly influence 
@@ -197,13 +195,13 @@ export function BackgroundSection() {
             className="bg-gradient-to-r from-primary/10 to-secondary/20 rounded-2xl p-8 border border-primary/20"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-primary/30 rounded-xl flex items-center justify-center">
-                <Globe className="w-6 h-6 text-primary" />
+              <div className="w-12 h-12 bg-primary/30 rounded-xl flex items-center justify-center text-2xl">
+                🌍
               </div>
               <h2 className="text-2xl font-bold text-dark">Addressing the Research Gap</h2>
             </div>
             
-            <div className="prose prose-gray max-w-none">
+            <div>
               <p className="text-gray-600 leading-relaxed">
                 The reviewed studies demonstrate that although online education and AI technologies have potential to improve 
                 learning outcomes, they often fail to address the needs of learners in low-connectivity and resource-constrained 
@@ -243,7 +241,7 @@ export function BackgroundSection() {
             className="bg-gray-50 rounded-2xl p-8 border border-gray-200 mt-8"
           >
             <div className="flex items-center gap-2 mb-6">
-              <BookOpen className="w-5 h-5 text-primary" />
+              <span className="text-xl">📖</span>
               <h3 className="text-xl font-bold text-dark">References</h3>
             </div>
             <div className="space-y-3 text-sm text-gray-600">
