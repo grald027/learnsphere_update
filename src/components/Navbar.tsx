@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 
 // Import your logo icon (create this file in your assets folder)
-import LogoIcon from '../assets/learnsphere-icon.svg'; // or use a PNG
+import LogoIcon from '../assets/learnsphere_icon.png'; // or use a PNG
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
