@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import LogoIcon from '../assets/learnsphere-icon.svg'; // Same icon import
+import LogoIcon from '../assets/learnsphere_icon.png'; // Same icon import
 
 export function Footer() {
   return (
