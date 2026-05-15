@@ -54,6 +54,7 @@ interface DownloadedModule extends Module {
 // Storage keys
 const STORAGE_KEY = 'learnsphere_downloaded_modules';
 const UPLOADED_FILES_KEY = 'learnsphere_uploaded_files';
+const DOWNLOADED_FILES_KEY = 'learnsphere_downloaded_files';
 
 // The 8 Courses
 const sampleModules: Module[] = [
@@ -151,7 +152,7 @@ const getSubjectColor = (subject: string) => {
   return colorMap[subject] || 'bg-gray-100 text-gray-800 border-gray-200';
 };
 
-// Helper functions for localStorage
+// Helper functions
 const loadDownloadedModules = (): DownloadedModule[] => {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
@@ -163,7 +164,6 @@ const loadDownloadedModules = (): DownloadedModule[] => {
         lastAccessed: mod.lastAccessed ? new Date(mod.lastAccessed) : undefined
       }));
     } catch (e) {
-      console.error('Error loading downloaded modules:', e);
       return [];
     }
   }
@@ -191,17 +191,10 @@ const saveUploadedFiles = (files: { [key: string]: CourseFile[] }) => {
 };
 
 // File Upload Modal Component
-interface FileUploadModalProps {
-  module: Module;
-  onClose: () => void;
-  onUploadComplete: (moduleId: string, file: CourseFile) => void;
-}
-
-function FileUploadModal({ module, onClose, onUploadComplete }: FileUploadModalProps) {
+const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module; onClose: () => void; onUploadComplete: (moduleId: string, file: CourseFile) => void }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -215,13 +208,11 @@ function FileUploadModal({ module, onClose, onUploadComplete }: FileUploadModalP
     setUploading(true);
     setUploadProgress(0);
     
-    // Simulate upload progress
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    for (let i = 0; i <= 100; i += 20) {
+      await new Promise(resolve => setTimeout(resolve, 150));
       setUploadProgress(i);
     }
     
-    // Create new file object
     const newFile: CourseFile = {
       id: `${module.id}-${Date.now()}`,
       name: selectedFile.name,
@@ -261,32 +252,21 @@ function FileUploadModal({ module, onClose, onUploadComplete }: FileUploadModalP
         </div>
         
         <div className="p-6">
-          <label className="block w-full">
-            <input
-              ref={fileInputRef}
-              type="file"
-              onChange={handleFileSelect}
-              className="hidden"
-              accept=".pdf,.docx,.pptx,.txt,.md,.zip,.mp4"
-            />
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-colors">
+          <label className="block w-full cursor-pointer">
+            <input type="file" onChange={handleFileSelect} className="hidden" accept=".pdf,.docx,.pptx,.txt,.md,.zip" />
+            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
               {selectedFile ? (
                 <>
                   <FileText className="w-10 h-10 text-primary mx-auto mb-2" />
                   <p className="text-sm font-medium text-dark">{selectedFile.name}</p>
                   <p className="text-xs text-gray-400 mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                  <button 
-                    onClick={() => setSelectedFile(null)}
-                    className="mt-2 text-xs text-red-500 hover:text-red-600"
-                  >
-                    Remove
-                  </button>
+                  <button onClick={() => setSelectedFile(null)} className="mt-2 text-xs text-red-500 hover:text-red-600">Remove</button>
                 </>
               ) : (
                 <>
                   <Plus className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">Click to select a file</p>
-                  <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, TXT, ZIP, MP4 (Max 50MB)</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, TXT, ZIP (Max 50MB)</p>
                 </>
               )}
             </div>
@@ -306,34 +286,25 @@ function FileUploadModal({ module, onClose, onUploadComplete }: FileUploadModalP
         </div>
         
         <div className="p-6 border-t border-gray-200 flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
-            Cancel
-          </button>
-          <button 
-            onClick={handleUpload} 
-            disabled={!selectedFile || uploading}
-            className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={handleUpload} disabled={!selectedFile || uploading} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent disabled:opacity-50 flex items-center justify-center gap-2">
             {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Upload File
+            Upload
           </button>
         </div>
       </motion.div>
     </motion.div>
   );
-}
+};
 
 // File Browser Modal Component
-interface FileBrowserProps {
-  module: Module;
-  onClose: () => void;
-  downloadedFiles: string[];
-  onDownloadFile: (moduleId: string, file: CourseFile) => void;
+const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploadFile }: { 
+  module: Module; 
+  onClose: () => void; 
+  downloadedFiles: string[]; 
+  onDownloadFile: (moduleId: string, file: CourseFile) => void; 
   onUploadFile: (module: Module) => void;
-  isInstructor?: boolean;
-}
-
-function FileBrowser({ module, onClose, downloadedFiles, onDownloadFile, onUploadFile, isInstructor = true }: FileBrowserProps) {
+}) => {
   const files = module.files || [];
   
   return (
@@ -359,9 +330,7 @@ function FileBrowser({ module, onClose, downloadedFiles, onDownloadFile, onUploa
             </h2>
             <p className="text-gray text-sm mt-1">Course materials and resources</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <X className="w-5 h-5 text-gray" />
-          </button>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray" /></button>
         </div>
         
         <div className="p-6 border-b border-gray-100 bg-gray-50">
@@ -371,15 +340,10 @@ function FileBrowser({ module, onClose, downloadedFiles, onDownloadFile, onUploa
         <div className="flex-1 overflow-y-auto p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-dark">Available Materials ({files.length})</h3>
-            {isInstructor && (
-              <button
-                onClick={() => onUploadFile(module)}
-                className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors flex items-center gap-1"
-              >
-                <Upload className="w-3 h-3" />
-                Upload File
-              </button>
-            )}
+            <button onClick={() => onUploadFile(module)} className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 flex items-center gap-1">
+              <Upload className="w-3 h-3" />
+              Upload File
+            </button>
           </div>
           
           {files.length > 0 ? (
@@ -387,7 +351,7 @@ function FileBrowser({ module, onClose, downloadedFiles, onDownloadFile, onUploa
               {files.map((file) => {
                 const isDownloaded = downloadedFiles.includes(file.id);
                 return (
-                  <div key={file.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:shadow-sm transition-shadow">
+                  <div key={file.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:shadow-sm">
                     <div className="flex items-center gap-3 flex-1">
                       <FileText className="w-5 h-5 text-primary" />
                       <div className="flex-1">
@@ -397,12 +361,10 @@ function FileBrowser({ module, onClose, downloadedFiles, onDownloadFile, onUploa
                     </div>
                     <button
                       onClick={() => onDownloadFile(module.id, file)}
-                      className={`ml-3 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
-                        isDownloaded
-                          ? 'bg-green-100 text-green-600 cursor-default'
-                          : 'bg-primary text-white hover:bg-accent'
-                      }`}
                       disabled={isDownloaded}
+                      className={`ml-3 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
+                        isDownloaded ? 'bg-green-100 text-green-600 cursor-default' : 'bg-primary text-white hover:bg-accent'
+                      }`}
                     >
                       {isDownloaded ? <CheckCircle2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
                       {isDownloaded ? 'Downloaded' : 'Download'}
@@ -415,22 +377,17 @@ function FileBrowser({ module, onClose, downloadedFiles, onDownloadFile, onUploa
             <div className="text-center py-12 bg-gray-50 rounded-xl">
               <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No materials uploaded yet</p>
-              {isInstructor && (
-                <button
-                  onClick={() => onUploadFile(module)}
-                  className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-accent transition-colors inline-flex items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload First Material
-                </button>
-              )}
+              <button onClick={() => onUploadFile(module)} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Upload First Material
+              </button>
             </div>
           )}
         </div>
       </motion.div>
     </motion.div>
   );
-}
+};
 
 // Main Component
 export function LearningSection() {
@@ -452,15 +409,14 @@ export function LearningSection() {
     const saved = loadDownloadedModules();
     setDownloadedModules(saved);
     
-    const savedFiles = localStorage.getItem(DOWNLOADED_FILES_KEY);
-    if (savedFiles) {
-      setDownloadedFiles(JSON.parse(savedFiles));
+    const savedDownloadedFiles = localStorage.getItem(DOWNLOADED_FILES_KEY);
+    if (savedDownloadedFiles) {
+      setDownloadedFiles(JSON.parse(savedDownloadedFiles));
     }
     
     const savedUploads = loadUploadedFiles();
     setUploadedFiles(savedUploads);
     
-    // Merge uploaded files into modules
     const updatedModules = sampleModules.map(module => ({
       ...module,
       files: savedUploads[module.id] || []
@@ -490,8 +446,7 @@ export function LearningSection() {
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Create downloadable content
-      const content = `File: ${file.name}\nCourse: ${modules.find(m => m.id === moduleId)?.title}\nSize: ${file.size}\nUpload Date: ${file.uploadDate}\n\nThis is a downloaded file from LearnSphere.`;
+      const content = `File: ${file.name}\nCourse: ${modules.find(m => m.id === moduleId)?.title}\nSize: ${file.size}\nUpload Date: ${file.uploadDate}\n\nThis file was downloaded from LearnSphere.`;
       
       const blob = new Blob([content], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
@@ -540,7 +495,6 @@ export function LearningSection() {
     setUploadedFiles(updatedUploads);
     saveUploadedFiles(updatedUploads);
     
-    // Update modules state
     setModules(prev => prev.map(m => 
       m.id === moduleId 
         ? { ...m, files: [...(m.files || []), file] }
@@ -568,7 +522,7 @@ export function LearningSection() {
   };
 
   const isModuleDownloaded = (id: string) => downloadedModules.some(m => m.id === id);
-  const totalStorageUsed = downloadedModules.reduce((total, mod) => total + 0, 0); // Simplified
+  const totalStorageUsed = downloadedModules.length;
 
   return (
     <section className="py-16 bg-secondary/10 min-h-[calc(100vh-80px)]">
@@ -576,186 +530,151 @@ export function LearningSection() {
         
         {/* Offline Mode Banner */}
         {!navigator.onLine && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
             <CloudOff className="w-5 h-5 text-blue-600" />
             <div className="flex-1">
               <p className="text-blue-800 font-medium">Offline Mode Active</p>
-              <p className="text-blue-600 text-sm">You're offline. Access your downloaded modules from Your Library.</p>
+              <p className="text-blue-600 text-sm">Access your downloaded modules from Your Library.</p>
             </div>
-            <button onClick={() => setShowLibrary(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-              Go to Library
-            </button>
-          </motion.div>
+            <button onClick={() => setShowLibrary(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Go to Library</button>
+          </div>
         )}
 
         {/* Error Banner */}
         {downloadError && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <p className="text-red-700 text-sm">{downloadError}</p>
-          </motion.div>
+          </div>
         )}
 
-        {/* Header & Search */}
-        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="mb-12">
-          <div className="text-center max-w-3xl mx-auto mb-10">
-            <div className="flex justify-center mb-4"><div className="bg-primary/10 p-3 rounded-full"><Terminal className="w-8 h-8 text-primary" /></div></div>
-            <h2 className="text-3xl md:text-4xl font-bold text-dark mb-4">Learning Library</h2>
-            <p className="text-lg text-gray">Browse and download course materials for your Computer Science program</p>
+        {/* Header */}
+        <div className="text-center max-w-3xl mx-auto mb-10">
+          <div className="flex justify-center mb-4"><div className="bg-primary/10 p-3 rounded-full"><Terminal className="w-8 h-8 text-primary" /></div></div>
+          <h2 className="text-3xl md:text-4xl font-bold text-dark mb-4">Learning Library</h2>
+          <p className="text-lg text-gray">Browse and download course materials for your Computer Science program</p>
+        </div>
+        
+        {/* Search Bar */}
+        <div className="max-w-2xl mx-auto mb-8">
+          <div className="relative flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input type="text" placeholder="Search by course code or title..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-4 rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+            <button onClick={() => setShowLibrary(true)} className="px-5 py-4 bg-white border border-gray-200 rounded-full hover:shadow-md flex items-center gap-2 text-dark hover:text-primary">
+              <Library className="w-5 h-5" />
+              <span className="hidden sm:inline">My Library</span>
+              {downloadedModules.length > 0 && <span className="ml-1 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{downloadedModules.length}</span>}
+            </button>
+            <button onClick={() => setShowFilters(!showFilters)} className={`px-5 py-4 rounded-full flex items-center gap-2 ${showFilters || showOfflineOnly ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-dark'}`}>
+              <Filter className="w-5 h-5" />
+            </button>
           </div>
-          
-          <div className="max-w-2xl mx-auto">
-            <div className="relative flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input type="text" placeholder="Search by course code or title..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-4 rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+        </div>
+        
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="max-w-2xl mx-auto mb-8 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex flex-wrap gap-4 items-center">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={showOfflineOnly} onChange={(e) => setShowOfflineOnly(e.target.checked)} className="w-4 h-4 text-primary rounded" />
+                <span className="text-sm text-dark">Show only downloaded modules</span>
+              </label>
+              <div className="h-6 w-px bg-gray-200" />
+              <div className="flex items-center gap-2 text-sm text-gray">
+                <HardDrive className="w-4 h-4" />
+                <span>{downloadedModules.length} module(s) downloaded</span>
               </div>
-              <button onClick={() => setShowLibrary(true)} className="px-5 py-4 bg-white border border-gray-200 rounded-full hover:shadow-md transition-all flex items-center gap-2 text-dark hover:text-primary">
-                <Library className="w-5 h-5" />
-                <span className="hidden sm:inline">My Library</span>
-                {downloadedModules.length > 0 && <span className="ml-1 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{downloadedModules.length}</span>}
-              </button>
-              <button onClick={() => setShowFilters(!showFilters)} className={`px-5 py-4 rounded-full transition-all flex items-center gap-2 ${showFilters || showOfflineOnly ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-dark'}`}>
-                <Filter className="w-5 h-5" />
-                <span className="hidden sm:inline">Filters</span>
-              </button>
+              {downloadedModules.length > 0 && (
+                <button onClick={() => { if (confirm('Remove all downloaded modules?')) { setDownloadedModules([]); saveDownloadedModules([]); setDownloadedFiles([]); localStorage.removeItem(DOWNLOADED_FILES_KEY); } }} className="text-red-500 text-sm">
+                  Clear All
+                </button>
+              )}
             </div>
           </div>
-          
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="max-w-2xl mx-auto mt-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex flex-wrap gap-4 items-center">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={showOfflineOnly} onChange={(e) => setShowOfflineOnly(e.target.checked)} className="w-4 h-4 text-primary rounded" />
-                    <span className="text-sm text-dark">Show only downloaded modules</span>
-                  </label>
-                  <div className="h-6 w-px bg-gray-200" />
-                  <div className="flex items-center gap-2 text-sm text-gray">
-                    <HardDrive className="w-4 h-4" />
-                    <span>Storage: {downloadedModules.length} module(s) saved</span>
-                  </div>
-                  {downloadedModules.length > 0 && (
-                    <button onClick={() => { if (confirm('Remove all downloaded modules?')) { setDownloadedModules([]); saveDownloadedModules([]); setDownloadedFiles([]); localStorage.removeItem(DOWNLOADED_FILES_KEY); } }} className="text-red-500 text-sm hover:text-red-700">
-                      Clear All
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+        )}
 
         {/* Subject Filters */}
-        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.1 }} className="mb-12 overflow-x-auto pb-4">
+        <div className="mb-8 overflow-x-auto pb-4">
           <div className="flex space-x-3 min-w-max">
             {subjects.map((subject) => (
-              <button key={subject} onClick={() => setActiveSubject(subject)} className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap ${activeSubject === subject ? 'bg-primary text-white shadow-md' : 'bg-secondary/50 text-gray hover:bg-secondary hover:text-primary'}`}>
+              <button key={subject} onClick={() => setActiveSubject(subject)} className={`px-5 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeSubject === subject ? 'bg-primary text-white shadow-md' : 'bg-secondary/50 text-gray hover:bg-secondary hover:text-primary'}`}>
                 {subject === 'All' ? 'All Courses' : subject}
               </button>
             ))}
           </div>
-        </motion.div>
+        </div>
 
         {/* Module Grid */}
         {filteredModules.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredModules.map((module, index) => {
+            {filteredModules.map((module) => {
               const isDownloaded = isModuleDownloaded(module.id);
-              const hasFiles = (module.files && module.files.length > 0);
+              const hasFiles = module.files && module.files.length > 0;
               
               return (
-                <motion.div
-                  layout
-                  key={module.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.3) }}
-                  whileHover={{ y: -4 }}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg transition-all overflow-hidden"
-                >
-                  {/* Card Content */}
+                <div key={module.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg transition-all overflow-hidden">
                   <div className="p-5">
-                    {/* Course Code and Subject */}
                     <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <code className="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded">{module.code}</code>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${getSubjectColor(module.subject)}`}>
-                        {module.subject}
-                      </span>
+                      <code className="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded">{module.code}</code>
+                      <span className={`text-xs px-2 py-1 rounded-full ${getSubjectColor(module.subject)}`}>{module.subject}</span>
                     </div>
                     
-                    {/* Title */}
-                    <h3 className="text-lg font-bold text-dark mb-2 line-clamp-2">{module.title}</h3>
-                    
-                    {/* Description */}
+                    <h3 className="text-lg font-bold text-dark mb-2">{module.title}</h3>
                     <p className="text-gray-500 text-sm mb-4 line-clamp-2">{module.description}</p>
                     
-                    {/* File Info */}
                     <div className="flex items-center justify-between mb-4 text-xs">
                       <div className="flex items-center gap-1 text-gray-400">
                         <FileText className="w-3 h-3" />
-                        <span>{hasFiles ? `${module.files.length} file(s) available` : 'No materials yet'}</span>
+                        <span>{hasFiles ? `${module.files.length} file(s)` : 'No materials'}</span>
                       </div>
                       {hasFiles && (
                         <button onClick={() => handleViewFiles(module)} className="text-primary hover:underline flex items-center gap-1">
                           <Eye className="w-3 h-3" />
-                          Browse files
+                          Browse
                         </button>
                       )}
                     </div>
                     
-                    {/* Buttons */}
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleViewFiles(module)}
-                        className="flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                      >
+                      <button onClick={() => handleViewFiles(module)} className="flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200">
                         <FolderOpen className="w-4 h-4" />
                         Browse
                       </button>
-                      <button
-                        onClick={() => handleOpenUploadModal(module)}
-                        className="py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                        title="Upload materials"
-                      >
+                      <button onClick={() => handleOpenUploadModal(module)} className="py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center bg-primary/10 text-primary hover:bg-primary/20" title="Upload materials">
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
                     
-                    {/* Downloaded Badge */}
                     {isDownloaded && (
                       <div className="mt-3 pt-3 border-t border-gray-100">
                         <div className="flex items-center justify-center gap-1 text-xs text-green-600">
                           <CheckCircle2 className="w-3 h-3" />
-                          <span>Downloaded to your library</span>
+                          <span>Downloaded to library</span>
                         </div>
                       </div>
                     )}
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>
         ) : (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
+          <div className="text-center py-20">
             <div className="w-24 h-24 bg-secondary rounded-full flex items-center justify-center mx-auto mb-6"><Search className="w-10 h-10 text-primary/50" /></div>
             <h3 className="text-xl font-bold text-dark mb-2">No modules found</h3>
-            <p className="text-gray max-w-md mx-auto">{showOfflineOnly ? "You haven't downloaded any modules yet." : `No courses matching "${searchQuery}" in ${activeSubject}.`}</p>
-            {showOfflineOnly && downloadedModules.length === 0 && <button onClick={() => setShowOfflineOnly(false)} className="mt-6 text-primary font-medium hover:underline">Browse all courses</button>}
-            {!showOfflineOnly && searchQuery && <button onClick={() => { setSearchQuery(''); setActiveSubject('All'); }} className="mt-6 text-primary font-medium hover:underline">Clear all filters</button>}
-          </motion.div>
+            <p className="text-gray max-w-md mx-auto">{showOfflineOnly ? "You haven't downloaded any modules yet." : `No courses matching "${searchQuery}".`}</p>
+          </div>
         )}
       </div>
       
-      {/* Your Library Modal */}
+      {/* Library Modal */}
       <AnimatePresence>
         {showLibrary && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowLibrary(false)}>
             <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[80vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-bold text-dark flex items-center gap-2">
                     <Library className="w-6 h-6 text-primary" />
@@ -763,7 +682,7 @@ export function LearningSection() {
                   </h2>
                   <p className="text-gray text-sm mt-1">{downloadedModules.length} modules downloaded</p>
                 </div>
-                <button onClick={() => setShowLibrary(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="w-5 h-5 text-gray" /></button>
+                <button onClick={() => setShowLibrary(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray" /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-6">
                 {downloadedModules.length === 0 ? (
@@ -775,7 +694,7 @@ export function LearningSection() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {downloadedModules.map((module) => (
-                      <div key={module.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                      <div key={module.id} className="border border-gray-200 rounded-xl p-4">
                         <div className="flex justify-between items-start mb-2">
                           <code className="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded">{module.code}</code>
                           <button onClick={() => handleRemoveModule(module.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
@@ -806,7 +725,6 @@ export function LearningSection() {
             downloadedFiles={downloadedFiles}
             onDownloadFile={handleDownloadFile}
             onUploadFile={handleOpenUploadModal}
-            isInstructor={true}
           />
         )}
       </AnimatePresence>
@@ -816,10 +734,7 @@ export function LearningSection() {
         {showUploadModal && selectedModule && (
           <FileUploadModal
             module={selectedModule}
-            onClose={() => {
-              setShowUploadModal(false);
-              setSelectedModule(null);
-            }}
+            onClose={() => { setShowUploadModal(false); setSelectedModule(null); }}
             onUploadComplete={handleUploadFile}
           />
         )}
