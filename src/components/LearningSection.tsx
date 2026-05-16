@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { upload } from '@vercel/blob/client';
 import {
   Search,
   Download,
@@ -17,10 +16,7 @@ import {
   FileText,
   AlertCircle,
   CheckCircle2,
-  Upload,
-  Plus,
-  Trash,
-  Cloud
+  Eye
 } from 'lucide-react';
 
 // Define file type
@@ -29,7 +25,6 @@ interface CourseFile {
   name: string;
   size: string;
   type: string;
-  uploadDate: string;
   url: string;
 }
 
@@ -54,7 +49,7 @@ interface DownloadedModule extends Module {
 const STORAGE_KEY = 'learnsphere_downloaded_modules';
 const DOWNLOADED_FILES_KEY = 'learnsphere_downloaded_files';
 
-// The 8 Courses
+// The 8 Courses with Embedded Files
 const sampleModules: Module[] = [
   {
     id: 'CS321',
@@ -62,7 +57,36 @@ const sampleModules: Module[] = [
     title: 'Programming Languages',
     subject: 'Programming Languages',
     description: 'Study of programming language paradigms, design principles, and implementation strategies.',
-    files: []
+    files: [
+      {
+        id: 'CS321-1',
+        name: 'Programming Languages Syllabus.pdf',
+        size: '1.2 MB',
+        type: 'pdf',
+        url: '/modules/CS321/syllabus.pdf'
+      },
+      {
+        id: 'CS321-2',
+        name: 'Introduction to Programming Paradigms.pptx',
+        size: '2.5 MB',
+        type: 'pptx',
+        url: '/modules/CS321/paradigms.pptx'
+      },
+      {
+        id: 'CS321-3',
+        name: 'Functional Programming Notes.pdf',
+        size: '1.8 MB',
+        type: 'pdf',
+        url: '/modules/CS321/functional.pdf'
+      },
+      {
+        id: 'CS321-4',
+        name: 'Programming Languages Exercise Set.zip',
+        size: '3.2 MB',
+        type: 'zip',
+        url: '/modules/CS321/exercises.zip'
+      }
+    ]
   },
   {
     id: 'CS322',
@@ -70,7 +94,36 @@ const sampleModules: Module[] = [
     title: 'Software Engineering 1',
     subject: 'Software Engineering',
     description: 'Software development lifecycle, requirements engineering, design patterns, project management.',
-    files: []
+    files: [
+      {
+        id: 'CS322-1',
+        name: 'Software Engineering Syllabus.pdf',
+        size: '1.1 MB',
+        type: 'pdf',
+        url: '/modules/CS322/syllabus.pdf'
+      },
+      {
+        id: 'CS322-2',
+        name: 'Software Development Lifecycle.pptx',
+        size: '2.8 MB',
+        type: 'pptx',
+        url: '/modules/CS322/sdlc.pptx'
+      },
+      {
+        id: 'CS322-3',
+        name: 'Design Patterns Reference.pdf',
+        size: '3.5 MB',
+        type: 'pdf',
+        url: '/modules/CS322/design-patterns.pdf'
+      },
+      {
+        id: 'CS322-4',
+        name: 'Project Management Templates.docx',
+        size: '1.5 MB',
+        type: 'docx',
+        url: '/modules/CS322/templates.docx'
+      }
+    ]
   },
   {
     id: 'CS323',
@@ -78,7 +131,29 @@ const sampleModules: Module[] = [
     title: 'Social Issues and Professional Practice',
     subject: 'Social & Professional',
     description: 'Ethical and social issues in computing, professional responsibilities, legal aspects.',
-    files: []
+    files: [
+      {
+        id: 'CS323-1',
+        name: 'Social Issues Syllabus.pdf',
+        size: '1.0 MB',
+        type: 'pdf',
+        url: '/modules/CS323/syllabus.pdf'
+      },
+      {
+        id: 'CS323-2',
+        name: 'Computing Ethics Case Studies.pdf',
+        size: '2.2 MB',
+        type: 'pdf',
+        url: '/modules/CS323/ethics.pdf'
+      },
+      {
+        id: 'CS323-3',
+        name: 'Professional Code of Conduct.pptx',
+        size: '1.5 MB',
+        type: 'pptx',
+        url: '/modules/CS323/code-of-conduct.pptx'
+      }
+    ]
   },
   {
     id: 'CS324',
@@ -86,7 +161,36 @@ const sampleModules: Module[] = [
     title: 'CS Elective 2 (Graphics and Visual Computing)',
     subject: 'Graphics & Visual Computing',
     description: 'Computer graphics fundamentals, 2D/3D rendering, visual design, animation.',
-    files: []
+    files: [
+      {
+        id: 'CS324-1',
+        name: 'Graphics Computing Syllabus.pdf',
+        size: '1.2 MB',
+        type: 'pdf',
+        url: '/modules/CS324/syllabus.pdf'
+      },
+      {
+        id: 'CS324-2',
+        name: 'Introduction to OpenGL.pdf',
+        size: '3.5 MB',
+        type: 'pdf',
+        url: '/modules/CS324/opengl.pdf'
+      },
+      {
+        id: 'CS324-3',
+        name: '3D Rendering Techniques.pptx',
+        size: '4.2 MB',
+        type: 'pptx',
+        url: '/modules/CS324/rendering.pptx'
+      },
+      {
+        id: 'CS324-4',
+        name: 'Graphics Sample Projects.zip',
+        size: '5.5 MB',
+        type: 'zip',
+        url: '/modules/CS324/projects.zip'
+      }
+    ]
   },
   {
     id: 'CS325',
@@ -94,7 +198,43 @@ const sampleModules: Module[] = [
     title: 'Mobile Computing',
     subject: 'Mobile Development',
     description: 'Mobile app development for iOS and Android, UI/UX design, cross-platform solutions.',
-    files: []
+    files: [
+      {
+        id: 'CS325-1',
+        name: 'Mobile Computing Syllabus.pdf',
+        size: '1.1 MB',
+        type: 'pdf',
+        url: '/modules/CS325/syllabus.pdf'
+      },
+      {
+        id: 'CS325-2',
+        name: 'iOS Development Fundamentals.pdf',
+        size: '3.8 MB',
+        type: 'pdf',
+        url: '/modules/CS325/ios.pdf'
+      },
+      {
+        id: 'CS325-3',
+        name: 'Android Studio Setup Guide.docx',
+        size: '1.8 MB',
+        type: 'docx',
+        url: '/modules/CS325/android-setup.docx'
+      },
+      {
+        id: 'CS325-4',
+        name: 'Cross-Platform Development.pptx',
+        size: '2.5 MB',
+        type: 'pptx',
+        url: '/modules/CS325/cross-platform.pptx'
+      },
+      {
+        id: 'CS325-5',
+        name: 'Mobile App Sample Code.zip',
+        size: '6.5 MB',
+        type: 'zip',
+        url: '/modules/CS325/sample-code.zip'
+      }
+    ]
   },
   {
     id: 'CS326',
@@ -102,7 +242,36 @@ const sampleModules: Module[] = [
     title: 'Modeling and Simulation',
     subject: 'Modeling & Simulation',
     description: 'System modeling, discrete and continuous simulation, statistical analysis.',
-    files: []
+    files: [
+      {
+        id: 'CS326-1',
+        name: 'Modeling and Simulation Syllabus.pdf',
+        size: '1.0 MB',
+        type: 'pdf',
+        url: '/modules/CS326/syllabus.pdf'
+      },
+      {
+        id: 'CS326-2',
+        name: 'Introduction to Simulation Models.pdf',
+        size: '2.5 MB',
+        type: 'pdf',
+        url: '/modules/CS326/simulation-models.pdf'
+      },
+      {
+        id: 'CS326-3',
+        name: 'Statistical Analysis for Simulation.pptx',
+        size: '2.2 MB',
+        type: 'pptx',
+        url: '/modules/CS326/statistics.pptx'
+      },
+      {
+        id: 'CS326-4',
+        name: 'Simulation Lab Exercises.zip',
+        size: '4.5 MB',
+        type: 'zip',
+        url: '/modules/CS326/lab-exercises.zip'
+      }
+    ]
   },
   {
     id: 'CS327',
@@ -110,7 +279,43 @@ const sampleModules: Module[] = [
     title: 'Data Mining Concepts and Techniques',
     subject: 'Data Science',
     description: 'Data preprocessing, classification, clustering, association rules, pattern discovery.',
-    files: []
+    files: [
+      {
+        id: 'CS327-1',
+        name: 'Data Mining Syllabus.pdf',
+        size: '1.2 MB',
+        type: 'pdf',
+        url: '/modules/CS327/syllabus.pdf'
+      },
+      {
+        id: 'CS327-2',
+        name: 'Data Preprocessing Techniques.pdf',
+        size: '2.8 MB',
+        type: 'pdf',
+        url: '/modules/CS327/preprocessing.pdf'
+      },
+      {
+        id: 'CS327-3',
+        name: 'Classification Algorithms.pptx',
+        size: '3.2 MB',
+        type: 'pptx',
+        url: '/modules/CS327/classification.pptx'
+      },
+      {
+        id: 'CS327-4',
+        name: 'Clustering Methods Reference.pdf',
+        size: '2.5 MB',
+        type: 'pdf',
+        url: '/modules/CS327/clustering.pdf'
+      },
+      {
+        id: 'CS327-5',
+        name: 'Data Mining Case Studies.zip',
+        size: '7.5 MB',
+        type: 'zip',
+        url: '/modules/CS327/case-studies.zip'
+      }
+    ]
   },
   {
     id: 'CS328',
@@ -118,7 +323,50 @@ const sampleModules: Module[] = [
     title: 'Machine Learning',
     subject: 'Artificial Intelligence',
     description: 'Supervised and unsupervised learning, neural networks, deep learning, model evaluation.',
-    files: []
+    files: [
+      {
+        id: 'CS328-1',
+        name: 'Machine Learning Syllabus.pdf',
+        size: '1.3 MB',
+        type: 'pdf',
+        url: '/modules/CS328/syllabus.pdf'
+      },
+      {
+        id: 'CS328-2',
+        name: 'Supervised Learning Algorithms.pdf',
+        size: '3.5 MB',
+        type: 'pdf',
+        url: '/modules/CS328/supervised.pdf'
+      },
+      {
+        id: 'CS328-3',
+        name: 'Neural Networks and Deep Learning.pptx',
+        size: '4.2 MB',
+        type: 'pptx',
+        url: '/modules/CS328/neural-networks.pptx'
+      },
+      {
+        id: 'CS328-4',
+        name: 'Model Evaluation Techniques.pdf',
+        size: '2.2 MB',
+        type: 'pdf',
+        url: '/modules/CS328/evaluation.pdf'
+      },
+      {
+        id: 'CS328-5',
+        name: 'ML Practice Datasets.zip',
+        size: '12.5 MB',
+        type: 'zip',
+        url: '/modules/CS328/datasets.zip'
+      },
+      {
+        id: 'CS328-6',
+        name: 'Python ML Code Examples.zip',
+        size: '3.8 MB',
+        type: 'zip',
+        url: '/modules/CS328/code-examples.zip'
+      }
+    ]
   }
 ];
 
@@ -164,263 +412,76 @@ const saveDownloadedModules = (modules: DownloadedModule[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(modules));
 };
 
-// ─── API Functions ────────────────────────────────────────────────────────────
-
-/**
- * Client-side upload: file goes DIRECTLY from the browser to Vercel Blob.
- * The serverless function (/api/upload) only issues a short-lived token.
- * This completely bypasses Vercel's 4.5 MB serverless body limit.
- */
-const uploadFileToServer = async (moduleId: string, file: File): Promise<CourseFile> => {
-  const blobPath = `${moduleId}/${Date.now()}-${file.name}`;
-
-  const blob = await upload(blobPath, file, {
-    access: 'public',
-    handleUploadUrl: '/api/upload',   // token-exchange endpoint
-    clientPayload: moduleId,          // passed through to onBeforeGenerateToken
-  });
-
-  return {
-    id: blob.url,
-    name: file.name,
-    size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-    type: file.type,
-    uploadDate: new Date().toLocaleDateString(),
-    url: blob.url,
-  };
-};
-
-const deleteFileFromServer = async (fileUrl: string): Promise<void> => {
-  const response = await fetch(`/api/delete?url=${encodeURIComponent(fileUrl)}`, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    throw new Error('Delete failed');
-  }
-};
-
-const loadFilesFromServer = async (moduleId: string): Promise<CourseFile[]> => {
-  const response = await fetch(`/api/list-files?moduleId=${moduleId}`);
-
-  if (!response.ok) {
-    return [];
-  }
-
-  const data = await response.json();
-  return data.files || [];
-};
-
-// ─── File Upload Modal ────────────────────────────────────────────────────────
-
-const FileUploadModal = ({
-  module,
-  onClose,
-  onUploadComplete,
-}: {
-  module: Module;
-  onClose: () => void;
-  onUploadComplete: (moduleId: string, file: CourseFile) => void;
-}) => {
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 100 * 1024 * 1024) {
-        setError('File size exceeds 100 MB limit');
-        return;
-      }
-      setError(null);
-      setSelectedFile(file);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
-    setUploading(true);
-    setUploadProgress(0);
-
-    // Fake progress bar — real progress comes from the blob SDK internally
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => Math.min(prev + 8, 90));
-    }, 200);
-
-    try {
-      const uploadedFile = await uploadFileToServer(module.id, selectedFile);
-
-      clearInterval(interval);
-      setUploadProgress(100);
-
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      onUploadComplete(module.id, uploadedFile);
-      setSelectedFile(null);
-      onClose();
-    } catch (err) {
-      clearInterval(interval);
-      console.error('Upload error:', err);
-      setError('Upload failed. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-dark flex items-center gap-2">
-            <Upload className="w-5 h-5 text-primary" />
-            Upload to {module.code}
-          </h2>
-          <p className="text-gray text-sm mt-1">Files will be available to all users</p>
-        </div>
-
-        <div className="p-6">
-          <label className="block w-full cursor-pointer">
-            <input
-              type="file"
-              onChange={handleFileSelect}
-              className="hidden"
-              accept=".pdf,.docx,.pptx,.txt,.md,.zip,.jpg,.png"
-            />
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
-              {selectedFile ? (
-                <>
-                  <FileText className="w-10 h-10 text-primary mx-auto mb-2" />
-                  <p className="text-sm font-medium text-dark">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFile(null);
-                    }}
-                    className="mt-2 text-xs text-red-500 hover:text-red-600"
-                  >
-                    Remove
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">Click to select a file</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    PDF, DOCX, PPTX, ZIP, Images (Max 100 MB)
-                  </p>
-                  <p className="text-xs text-blue-500 mt-2">
-                    Shared cloud storage — visible to all users
-                  </p>
-                </>
-              )}
-            </div>
-          </label>
-
-          {error && <p className="text-red-500 text-sm mt-2 text-center">{error}</p>}
-
-          {uploading && (
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>Uploading to cloud…</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-primary rounded-full h-2 transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="p-6 border-t border-gray-200 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleUpload}
-            disabled={!selectedFile || uploading}
-            className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Cloud className="w-4 h-4" />
-            )}
-            Upload to Cloud
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── File Browser Modal ───────────────────────────────────────────────────────
-
+// File Browser Modal Component
 const FileBrowser = ({
   module,
   onClose,
   downloadedFiles,
   onDownloadFile,
-  onUploadFile,
-  onDeleteFile,
 }: {
   module: Module;
   onClose: () => void;
   downloadedFiles: string[];
   onDownloadFile: (moduleId: string, file: CourseFile) => void;
-  onUploadFile: (module: Module) => void;
-  onDeleteFile: (moduleId: string, fileId: string, fileUrl: string) => void;
 }) => {
   const files = module.files || [];
-  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const handleDelete = async (file: CourseFile) => {
-    if (
-      confirm(
-        'Are you sure you want to delete this file? This action cannot be undone and will affect all users.'
-      )
-    ) {
-      setDeleting(file.id);
-      await onDeleteFile(module.id, file.id, file.url);
-      setDeleting(null);
-    }
+  // Group files by type for better organization
+  const pdfFiles = files.filter(f => f.type === 'pdf');
+  const pptFiles = files.filter(f => f.type === 'pptx');
+  const docFiles = files.filter(f => f.type === 'docx');
+  const zipFiles = files.filter(f => f.type === 'zip');
+  const otherFiles = files.filter(f => !['pdf', 'pptx', 'docx', 'zip'].includes(f.type));
+
+  const FileSection = ({ title, files: sectionFiles, icon }: { title: string; files: CourseFile[]; icon: string }) => {
+    if (sectionFiles.length === 0) return null;
+    return (
+      <div className="mb-6">
+        <h4 className="text-sm font-semibold text-gray-500 mb-2 flex items-center gap-2">
+          <span>{icon}</span>
+          {title} ({sectionFiles.length})
+        </h4>
+        <div className="space-y-2">
+          {sectionFiles.map((file) => {
+            const isDownloaded = downloadedFiles.includes(file.id);
+            return (
+              <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-dark truncate">{file.name}</p>
+                    <p className="text-xs text-gray-400">{file.size}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onDownloadFile(module.id, file)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors ${
+                    isDownloaded
+                      ? 'bg-green-100 text-green-600'
+                      : 'bg-primary text-white hover:bg-accent'
+                  }`}
+                >
+                  {isDownloaded ? <CheckCircle2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                  {isDownloaded ? 'Downloaded' : 'Download'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
           <div>
             <h2 className="text-2xl font-bold text-dark flex items-center gap-2">
               <FolderOpen className="w-6 h-6 text-primary" />
               {module.code}: {module.title}
             </h2>
-            <p className="text-gray text-sm mt-1">
-              Shared cloud storage — visible to all users
-            </p>
+            <p className="text-gray text-sm mt-1">{files.length} material(s) available</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5 text-gray" />
@@ -432,130 +493,40 @@ const FileBrowser = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-dark">Course Materials ({files.length})</h3>
-            <button
-              onClick={() => onUploadFile(module)}
-              className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 flex items-center gap-1"
-            >
-              <Upload className="w-3 h-3" />
-              Upload File
-            </button>
-          </div>
-
-          {files.length > 0 ? (
-            <div className="space-y-2">
-              {files.map((file) => {
-                const isDownloaded = downloadedFiles.includes(file.id);
-                return (
-                  <div
-                    key={file.id}
-                    className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:shadow-sm"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <FileText className="w-5 h-5 text-primary flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-dark truncate">{file.name}</p>
-                        <p className="text-xs text-gray-400">
-                          {file.size} • Uploaded: {file.uploadDate}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => onDownloadFile(module.id, file)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                          isDownloaded
-                            ? 'bg-green-100 text-green-600'
-                            : 'bg-primary text-white hover:bg-accent'
-                        }`}
-                      >
-                        {isDownloaded ? (
-                          <CheckCircle2 className="w-4 h-4" />
-                        ) : (
-                          <Download className="w-4 h-4" />
-                        )}
-                        {isDownloaded ? 'Downloaded' : 'Download'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(file)}
-                        disabled={deleting === file.id}
-                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                        title="Delete file (affects all users)"
-                      >
-                        {deleting === file.id ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12 bg-gray-50 rounded-xl">
-              <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No materials uploaded yet</p>
-              <button
-                onClick={() => onUploadFile(module)}
-                className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium inline-flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Upload First Material
-              </button>
-            </div>
-          )}
+          <FileSection title="Lecture Notes & Documents" files={pdfFiles} icon="📄" />
+          <FileSection title="Presentations" files={pptFiles} icon="📊" />
+          <FileSection title="Guides & Templates" files={docFiles} icon="📝" />
+          <FileSection title="Resources & Downloads" files={zipFiles} icon="📦" />
+          <FileSection title="Other Materials" files={otherFiles} icon="📎" />
         </div>
       </div>
     </div>
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
+// Main Component
 export function LearningSection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSubject, setActiveSubject] = useState('All');
   const [downloadedModules, setDownloadedModules] = useState<DownloadedModule[]>([]);
   const [downloadedFiles, setDownloadedFiles] = useState<string[]>([]);
-  const [modules, setModules] = useState<Module[]>([]);
+  const [modules] = useState<Module[]>(sampleModules);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showOfflineOnly, setShowOfflineOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const loadAllData = async () => {
-      setLoading(true);
-      try {
-        const modulesWithFiles = await Promise.all(
-          sampleModules.map(async (module) => {
-            const serverFiles = await loadFilesFromServer(module.id);
-            return { ...module, files: serverFiles };
-          })
-        );
-        setModules(modulesWithFiles);
+    const saved = loadDownloadedModules();
+    setDownloadedModules(saved);
 
-        const saved = loadDownloadedModules();
-        setDownloadedModules(saved);
-
-        const savedDownloadedFiles = localStorage.getItem(DOWNLOADED_FILES_KEY);
-        if (savedDownloadedFiles) {
-          setDownloadedFiles(JSON.parse(savedDownloadedFiles));
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAllData();
+    const savedDownloadedFiles = localStorage.getItem(DOWNLOADED_FILES_KEY);
+    if (savedDownloadedFiles) {
+      setDownloadedFiles(JSON.parse(savedDownloadedFiles));
+    }
+    setLoading(false);
   }, []);
 
   const filteredModules = useMemo(() => {
@@ -576,6 +547,7 @@ export function LearningSection() {
 
   const handleDownloadFile = async (moduleId: string, file: CourseFile) => {
     try {
+      // For embedded files, we need to fetch them from the public directory
       const response = await fetch(file.url);
       const blob = await response.blob();
 
@@ -613,27 +585,6 @@ export function LearningSection() {
     }
   };
 
-  // Called after a successful upload — refreshes the file list from Vercel Blob
-  const handleUploadFile = async (moduleId: string, _file: CourseFile) => {
-    const updatedFiles = await loadFilesFromServer(moduleId);
-    setModules((prev) =>
-      prev.map((m) => (m.id === moduleId ? { ...m, files: updatedFiles } : m))
-    );
-  };
-
-  const handleDeleteFile = async (moduleId: string, _fileId: string, fileUrl: string) => {
-    try {
-      await deleteFileFromServer(fileUrl);
-      const updatedFiles = await loadFilesFromServer(moduleId);
-      setModules((prev) =>
-        prev.map((m) => (m.id === moduleId ? { ...m, files: updatedFiles } : m))
-      );
-    } catch (error) {
-      setDownloadError('Failed to delete file');
-      setTimeout(() => setDownloadError(null), 3000);
-    }
-  };
-
   const handleRemoveModule = (id: string) => {
     const updated = downloadedModules.filter((m) => m.id !== id);
     setDownloadedModules(updated);
@@ -644,11 +595,6 @@ export function LearningSection() {
     setSelectedModule(module);
   };
 
-  const handleOpenUploadModal = (module: Module) => {
-    setSelectedModule(module);
-    setShowUploadModal(true);
-  };
-
   const isModuleDownloaded = (id: string) => downloadedModules.some((m) => m.id === id);
 
   if (loading) {
@@ -656,7 +602,7 @@ export function LearningSection() {
       <div className="py-16 bg-secondary/10 min-h-[calc(100vh-80px)] flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-gray">Loading course materials…</p>
+          <p className="text-gray">Loading course materials...</p>
         </div>
       </div>
     );
@@ -672,7 +618,7 @@ export function LearningSection() {
             <div className="flex-1">
               <p className="text-blue-800 font-medium">Offline Mode Active</p>
               <p className="text-blue-600 text-sm">
-                You need internet to access shared cloud files.
+                You need internet to access course materials.
               </p>
             </div>
           </div>
@@ -692,7 +638,7 @@ export function LearningSection() {
             </div>
           </div>
           <h2 className="text-3xl md:text-4xl font-bold text-dark mb-4">Learning Library</h2>
-          <p className="text-lg text-gray">Shared cloud storage — Files visible to all users</p>
+          <p className="text-lg text-gray">Access course materials for your Computer Science program</p>
         </div>
 
         <div className="max-w-2xl mx-auto mb-8">
@@ -748,10 +694,6 @@ export function LearningSection() {
               <div className="flex items-center gap-2 text-sm text-gray">
                 <HardDrive className="w-4 h-4" />
                 <span>{downloadedModules.length} module(s) downloaded</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray">
-                <Cloud className="w-4 h-4" />
-                <span>Vercel Blob Storage (Shared)</span>
               </div>
               {downloadedModules.length > 0 && (
                 <button
@@ -823,22 +765,13 @@ export function LearningSection() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleViewFiles(module)}
-                        className="flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-primary text-white hover:bg-accent"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        Browse Files
-                      </button>
-                      <button
-                        onClick={() => handleOpenUploadModal(module)}
-                        className="py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        title="Upload materials"
-                      >
-                        <Upload className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleViewFiles(module)}
+                      className="w-full py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-primary text-white hover:bg-accent"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Browse Files
+                    </button>
 
                     {isDownloaded && (
                       <div className="mt-3 pt-3 border-t border-gray-100">
@@ -868,7 +801,7 @@ export function LearningSection() {
         )}
       </div>
 
-      {/* ── My Library Modal ── */}
+      {/* My Library Modal */}
       <AnimatePresence>
         {showLibrary && (
           <div
@@ -944,30 +877,14 @@ export function LearningSection() {
         )}
       </AnimatePresence>
 
-      {/* ── File Browser ── */}
+      {/* File Browser Modal */}
       <AnimatePresence>
-        {selectedModule && !showUploadModal && (
+        {selectedModule && (
           <FileBrowser
             module={selectedModule}
             onClose={() => setSelectedModule(null)}
             downloadedFiles={downloadedFiles}
             onDownloadFile={handleDownloadFile}
-            onUploadFile={handleOpenUploadModal}
-            onDeleteFile={handleDeleteFile}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* ── Upload Modal ── */}
-      <AnimatePresence>
-        {showUploadModal && selectedModule && (
-          <FileUploadModal
-            module={selectedModule}
-            onClose={() => {
-              setShowUploadModal(false);
-              setSelectedModule(null);
-            }}
-            onUploadComplete={handleUploadFile}
           />
         )}
       </AnimatePresence>
