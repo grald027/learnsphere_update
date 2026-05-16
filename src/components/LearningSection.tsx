@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
   Download,
-  BookOpen,
   Library,
   Trash2,
   HardDrive,
@@ -19,8 +18,8 @@ import {
   CheckCircle2,
   Upload,
   Plus,
-  Eye,
-  Trash
+  Trash,
+  Cloud
 } from 'lucide-react';
 
 // Define file type
@@ -30,8 +29,7 @@ interface CourseFile {
   size: string;
   type: string;
   uploadDate: string;
-  fileBlob?: Blob;
-  fileData?: string;
+  url: string;
 }
 
 // Define module data type
@@ -54,107 +52,6 @@ interface DownloadedModule extends Module {
 // Storage keys
 const STORAGE_KEY = 'learnsphere_downloaded_modules';
 const DOWNLOADED_FILES_KEY = 'learnsphere_downloaded_files';
-const MODULES_DATA_KEY = 'learnsphere_modules_data';
-
-// IndexedDB setup
-const DB_NAME = 'LearnSphereDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'course_files';
-
-let db: IDBDatabase | null = null;
-
-const initIndexedDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    if (db && db.name === DB_NAME) {
-      resolve(db);
-      return;
-    }
-    
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
-    
-    request.onupgradeneeded = (event) => {
-      const database = (event.target as IDBOpenDBRequest).result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('moduleId', 'moduleId', { unique: false });
-        store.createIndex('fileName', 'name', { unique: false });
-      }
-    };
-  });
-};
-
-const saveFileToDB = async (moduleId: string, fileId: string, file: File): Promise<void> => {
-  const database = await initIndexedDB();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    const fileRecord = {
-      id: fileId,
-      moduleId: moduleId,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      blob: file,
-      uploadDate: new Date().toISOString()
-    };
-    
-    const request = store.put(fileRecord);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
-};
-
-const getFileFromDB = async (fileId: string): Promise<Blob | null> => {
-  const database = await initIndexedDB();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(fileId);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      if (request.result) {
-        resolve(request.result.blob);
-      } else {
-        resolve(null);
-      }
-    };
-  });
-};
-
-const deleteFileFromDB = async (fileId: string): Promise<void> => {
-  const database = await initIndexedDB();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(fileId);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
-};
-
-const getFilesForModule = async (moduleId: string): Promise<any[]> => {
-  const database = await initIndexedDB();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const index = store.index('moduleId');
-    const request = index.getAll(moduleId);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      resolve(request.result || []);
-    };
-  });
-};
 
 // The 8 Courses
 const sampleModules: Module[] = [
@@ -266,6 +163,46 @@ const saveDownloadedModules = (modules: DownloadedModule[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(modules));
 };
 
+// API Functions
+const uploadFileToServer = async (moduleId: string, file: File): Promise<CourseFile> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('moduleId', moduleId);
+  
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Upload failed');
+  }
+  
+  return await response.json();
+};
+
+const deleteFileFromServer = async (fileUrl: string): Promise<void> => {
+  const response = await fetch(`/api/delete?url=${encodeURIComponent(fileUrl)}`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    throw new Error('Delete failed');
+  }
+};
+
+const loadFilesFromServer = async (moduleId: string): Promise<CourseFile[]> => {
+  const response = await fetch(`/api/list-files?moduleId=${moduleId}`);
+  
+  if (!response.ok) {
+    return [];
+  }
+  
+  const data = await response.json();
+  return data.files || [];
+};
+
 // File Upload Modal Component
 const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module; onClose: () => void; onUploadComplete: (moduleId: string, file: CourseFile) => void }) => {
   const [uploading, setUploading] = useState(false);
@@ -292,30 +229,18 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
     setUploadProgress(0);
     
     try {
-      // Simulate progress for UX
       const interval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
       
-      const fileId = `${module.id}-${Date.now()}-${selectedFile.name}`;
-      
-      // Save to IndexedDB
-      await saveFileToDB(module.id, fileId, selectedFile);
+      const uploadedFile = await uploadFileToServer(module.id, selectedFile);
       
       clearInterval(interval);
       setUploadProgress(100);
       
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const newFile: CourseFile = {
-        id: fileId,
-        name: selectedFile.name,
-        size: `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`,
-        type: selectedFile.type || selectedFile.name.split('.').pop() || 'file',
-        uploadDate: new Date().toLocaleDateString(),
-      };
-      
-      onUploadComplete(module.id, newFile);
+      onUploadComplete(module.id, uploadedFile);
       setSelectedFile(null);
       onClose();
       
@@ -335,12 +260,12 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
             <Upload className="w-5 h-5 text-primary" />
             Upload to {module.code}
           </h2>
-          <p className="text-gray text-sm mt-1">Upload learning materials (IndexedDB Storage)</p>
+          <p className="text-gray text-sm mt-1">Files will be available to all users</p>
         </div>
         
         <div className="p-6">
           <label className="block w-full cursor-pointer">
-            <input type="file" onChange={handleFileSelect} className="hidden" accept=".pdf,.docx,.pptx,.txt,.md,.zip,.jpg,.png,.mp4" />
+            <input type="file" onChange={handleFileSelect} className="hidden" accept=".pdf,.docx,.pptx,.txt,.md,.zip,.jpg,.png" />
             <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
               {selectedFile ? (
                 <>
@@ -353,8 +278,8 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
                 <>
                   <Plus className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">Click to select a file</p>
-                  <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, ZIP, Images, Videos (Max 100MB)</p>
-                  <p className="text-xs text-blue-500 mt-2">Files stored in browser's IndexedDB</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, ZIP, Images (Max 100MB)</p>
+                  <p className="text-xs text-blue-500 mt-2">Shared cloud storage - visible to all users</p>
                 </>
               )}
             </div>
@@ -365,7 +290,7 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
           {uploading && (
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>Uploading to IndexedDB...</span>
+                <span>Uploading to cloud...</span>
                 <span>{uploadProgress}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -378,8 +303,8 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
         <div className="p-6 border-t border-gray-200 flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">Cancel</button>
           <button onClick={handleUpload} disabled={!selectedFile || uploading} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent disabled:opacity-50 flex items-center justify-center gap-2">
-            {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Upload
+            {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
+            Upload to Cloud
           </button>
         </div>
       </div>
@@ -394,17 +319,21 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
   downloadedFiles: string[]; 
   onDownloadFile: (moduleId: string, file: CourseFile) => void; 
   onUploadFile: (module: Module) => void;
-  onDeleteFile: (moduleId: string, fileId: string) => void;
+  onDeleteFile: (moduleId: string, fileId: string, fileUrl: string) => void;
 }) => {
   const files = module.files || [];
   const [deleting, setDeleting] = useState<string | null>(null);
   
-  const handleDelete = async (fileId: string) => {
-    if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
-      setDeleting(fileId);
-      await onDeleteFile(module.id, fileId);
+  const handleDelete = async (file: CourseFile) => {
+    if (confirm('Are you sure you want to delete this file? This action cannot be undone and will affect all users.')) {
+      setDeleting(file.id);
+      await onDeleteFile(module.id, file.id, file.url);
       setDeleting(null);
     }
+  };
+  
+  const handleDownload = async (file: CourseFile) => {
+    await onDownloadFile(module.id, file);
   };
   
   return (
@@ -416,7 +345,7 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
               <FolderOpen className="w-6 h-6 text-primary" />
               {module.code}: {module.title}
             </h2>
-            <p className="text-gray text-sm mt-1">Course materials stored in IndexedDB</p>
+            <p className="text-gray text-sm mt-1">Shared cloud storage - visible to all users</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray" /></button>
         </div>
@@ -449,7 +378,7 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
-                        onClick={() => onDownloadFile(module.id, file)}
+                        onClick={() => handleDownload(file)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
                           isDownloaded ? 'bg-green-100 text-green-600' : 'bg-primary text-white hover:bg-accent'
                         }`}
@@ -458,10 +387,10 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
                         {isDownloaded ? 'Downloaded' : 'Download'}
                       </button>
                       <button
-                        onClick={() => handleDelete(file.id)}
+                        onClick={() => handleDelete(file)}
                         disabled={deleting === file.id}
                         className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                        title="Delete file"
+                        title="Delete file (affects all users)"
                       >
                         {deleting === file.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash className="w-4 h-4" />}
                       </button>
@@ -505,20 +434,11 @@ export function LearningSection() {
     const loadAllData = async () => {
       setLoading(true);
       try {
-        await initIndexedDB();
-        
-        // Load modules with files from IndexedDB
+        // Load modules with files from server
         const modulesWithFiles = await Promise.all(
           sampleModules.map(async (module) => {
-            const dbFiles = await getFilesForModule(module.id);
-            const fileMetadata = dbFiles.map(dbFile => ({
-              id: dbFile.id,
-              name: dbFile.name,
-              size: `${(dbFile.size / 1024 / 1024).toFixed(2)} MB`,
-              type: dbFile.type,
-              uploadDate: new Date(dbFile.uploadDate).toLocaleDateString(),
-            }));
-            return { ...module, files: fileMetadata };
+            const serverFiles = await loadFilesFromServer(module.id);
+            return { ...module, files: serverFiles };
           })
         );
         setModules(modulesWithFiles);
@@ -557,19 +477,18 @@ export function LearningSection() {
 
   const handleDownloadFile = async (moduleId: string, file: CourseFile) => {
     try {
-      const blob = await getFileFromDB(file.id);
-      if (!blob) {
-        throw new Error('File not found');
-      }
+      // Direct download from Vercel Blob URL
+      const response = await fetch(file.url);
+      const blob = await response.blob();
       
-      const url = URL.createObjectURL(blob);
+      const downloadUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = file.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(downloadUrl);
       
       if (!downloadedFiles.includes(file.id)) {
         const updatedFiles = [...downloadedFiles, file.id];
@@ -598,20 +517,24 @@ export function LearningSection() {
   };
 
   const handleUploadFile = async (moduleId: string, file: CourseFile) => {
+    // Refresh files from server
+    const updatedFiles = await loadFilesFromServer(moduleId);
     setModules(prev => prev.map(m => 
       m.id === moduleId 
-        ? { ...m, files: [...(m.files || []), file] }
+        ? { ...m, files: updatedFiles }
         : m
     ));
   };
 
-  const handleDeleteFile = async (moduleId: string, fileId: string) => {
+  const handleDeleteFile = async (moduleId: string, fileId: string, fileUrl: string) => {
     try {
-      await deleteFileFromDB(fileId);
+      await deleteFileFromServer(fileUrl);
       
+      // Refresh files from server
+      const updatedFiles = await loadFilesFromServer(moduleId);
       setModules(prev => prev.map(m => 
         m.id === moduleId 
-          ? { ...m, files: m.files.filter(f => f.id !== fileId) }
+          ? { ...m, files: updatedFiles }
           : m
       ));
       
@@ -643,7 +566,7 @@ export function LearningSection() {
       <div className="py-16 bg-secondary/10 min-h-[calc(100vh-80px)] flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-gray">Loading your library...</p>
+          <p className="text-gray">Loading course materials...</p>
         </div>
       </div>
     );
@@ -653,19 +576,16 @@ export function LearningSection() {
     <section className="py-16 bg-secondary/10 min-h-[calc(100vh-80px)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Offline Mode Banner */}
         {!navigator.onLine && (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
             <CloudOff className="w-5 h-5 text-blue-600" />
             <div className="flex-1">
               <p className="text-blue-800 font-medium">Offline Mode Active</p>
-              <p className="text-blue-600 text-sm">Your files are still accessible from IndexedDB.</p>
+              <p className="text-blue-600 text-sm">You need internet to access shared cloud files.</p>
             </div>
-            <button onClick={() => setShowLibrary(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Go to Library</button>
           </div>
         )}
 
-        {/* Error Banner */}
         {downloadError && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
@@ -673,14 +593,12 @@ export function LearningSection() {
           </div>
         )}
 
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
           <div className="flex justify-center mb-4"><div className="bg-primary/10 p-3 rounded-full"><Terminal className="w-8 h-8 text-primary" /></div></div>
           <h2 className="text-3xl md:text-4xl font-bold text-dark mb-4">Learning Library</h2>
-          <p className="text-lg text-gray">Browse and download course materials - IndexedDB Storage</p>
+          <p className="text-lg text-gray">Shared cloud storage - Files visible to all users</p>
         </div>
         
-        {/* Search Bar */}
         <div className="max-w-2xl mx-auto mb-8">
           <div className="relative flex items-center gap-3">
             <div className="relative flex-1">
@@ -698,7 +616,6 @@ export function LearningSection() {
           </div>
         </div>
         
-        {/* Filters Panel */}
         {showFilters && (
           <div className="max-w-2xl mx-auto mb-8 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="flex flex-wrap gap-4 items-center">
@@ -711,6 +628,10 @@ export function LearningSection() {
                 <HardDrive className="w-4 h-4" />
                 <span>{downloadedModules.length} module(s) downloaded</span>
               </div>
+              <div className="flex items-center gap-2 text-sm text-gray">
+                <Cloud className="w-4 h-4" />
+                <span>Vercel Blob Storage (Shared)</span>
+              </div>
               {downloadedModules.length > 0 && (
                 <button onClick={() => { if (confirm('Remove all downloaded modules?')) { setDownloadedModules([]); saveDownloadedModules([]); setDownloadedFiles([]); localStorage.removeItem(DOWNLOADED_FILES_KEY); } }} className="text-red-500 text-sm">
                   Clear All
@@ -720,7 +641,6 @@ export function LearningSection() {
           </div>
         )}
 
-        {/* Subject Filters */}
         <div className="mb-8 overflow-x-auto pb-4">
           <div className="flex space-x-3 min-w-max">
             {subjects.map((subject) => (
@@ -731,7 +651,6 @@ export function LearningSection() {
           </div>
         </div>
 
-        {/* Module Grid */}
         {filteredModules.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredModules.map((module) => {
@@ -788,7 +707,6 @@ export function LearningSection() {
         )}
       </div>
       
-      {/* Library Modal */}
       <AnimatePresence>
         {showLibrary && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowLibrary(false)}>
@@ -835,7 +753,6 @@ export function LearningSection() {
         )}
       </AnimatePresence>
 
-      {/* File Browser Modal */}
       <AnimatePresence>
         {selectedModule && !showUploadModal && (
           <FileBrowser
@@ -849,7 +766,6 @@ export function LearningSection() {
         )}
       </AnimatePresence>
 
-      {/* Upload Modal */}
       <AnimatePresence>
         {showUploadModal && selectedModule && (
           <FileUploadModal
