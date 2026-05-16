@@ -676,12 +676,13 @@ export function LearningSection() {
 
   const handleRemoveModule = (id: string) => {
     if (!confirm('Remove this module from your library?')) return;
-    // Collect all file IDs belonging to this module so we can un-mark them
-    const removedModule = downloadedModules.find(m => m.id === id);
-    const removedFileIds = new Set(removedModule?.files.map(f => f.id) ?? []);
+    // Use sampleModules as source of truth for all file IDs in this module
+    const moduleFileIds = new Set(
+      sampleModules.find(m => m.id === id)?.files.map(f => f.id) ?? []
+    );
 
     const updatedModules = downloadedModules.filter(m => m.id !== id);
-    const updatedFiles   = downloadedFiles.filter(fid => !removedFileIds.has(fid));
+    const updatedFiles   = downloadedFiles.filter(fid => !moduleFileIds.has(fid));
 
     setDownloadedModules(updatedModules);
     setDownloadedFiles(updatedFiles);
