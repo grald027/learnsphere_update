@@ -6,10 +6,8 @@ import {
   BookOpen,
   Library,
   Trash2,
-  ArrowDown,
   HardDrive,
   CloudOff,
-  Sparkles,
   RefreshCw,
   Filter,
   X,
@@ -31,7 +29,8 @@ interface CourseFile {
   size: string;
   type: string;
   uploadDate: string;
-  url?: string;
+  fileData?: string; // Base64 encoded file data
+  fileBlob?: Blob;
 }
 
 // Define module data type
@@ -157,12 +156,7 @@ const loadDownloadedModules = (): DownloadedModule[] => {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     try {
-      const parsed = JSON.parse(stored);
-      return parsed.map((mod: any) => ({
-        ...mod,
-        downloadedAt: new Date(mod.downloadedAt),
-        lastAccessed: mod.lastAccessed ? new Date(mod.lastAccessed) : undefined
-      }));
+      return JSON.parse(stored);
     } catch (e) {
       return [];
     }
@@ -190,15 +184,46 @@ const saveUploadedFiles = (files: { [key: string]: CourseFile[] }) => {
   localStorage.setItem(UPLOADED_FILES_KEY, JSON.stringify(files));
 };
 
+// Convert file to Base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
+};
+
+// Base64 to Blob for download
+const base64ToBlob = (base64: string, fileName: string): Blob => {
+  const arr = base64.split(',');
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+};
+
 // File Upload Modal Component
 const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module; onClose: () => void; onUploadComplete: (moduleId: string, file: CourseFile) => void }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > 50 * 1024 * 1024) {
+        setError('File size exceeds 50MB limit');
+        return;
+      }
+      setError(null);
+      setSelectedFile(file);
     }
   };
 
@@ -208,69 +233,71 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
     setUploading(true);
     setUploadProgress(0);
     
-    for (let i = 0; i <= 100; i += 20) {
-      await new Promise(resolve => setTimeout(resolve, 150));
-      setUploadProgress(i);
+    try {
+      // Simulate progress for better UX
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        setUploadProgress(i);
+      }
+      
+      // Convert file to Base64 for storage
+      const base64Data = await fileToBase64(selectedFile);
+      
+      const newFile: CourseFile = {
+        id: `${module.id}-${Date.now()}`,
+        name: selectedFile.name,
+        size: `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`,
+        type: selectedFile.type || selectedFile.name.split('.').pop() || 'file',
+        uploadDate: new Date().toLocaleDateString(),
+        fileData: base64Data
+      };
+      
+      onUploadComplete(module.id, newFile);
+      setSelectedFile(null);
+      onClose();
+      
+    } catch (err) {
+      setError('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
     }
-    
-    const newFile: CourseFile = {
-      id: `${module.id}-${Date.now()}`,
-      name: selectedFile.name,
-      size: `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`,
-      type: selectedFile.type.split('/').pop() || selectedFile.name.split('.').pop() || 'file',
-      uploadDate: new Date().toLocaleDateString(),
-      url: URL.createObjectURL(selectedFile)
-    };
-    
-    onUploadComplete(module.id, newFile);
-    setUploading(false);
-    setSelectedFile(null);
-    onClose();
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-dark flex items-center gap-2">
             <Upload className="w-5 h-5 text-primary" />
-            Upload File to {module.code}
+            Upload to {module.code}
           </h2>
           <p className="text-gray text-sm mt-1">Upload learning materials for this course</p>
         </div>
         
         <div className="p-6">
           <label className="block w-full cursor-pointer">
-            <input type="file" onChange={handleFileSelect} className="hidden" accept=".pdf,.docx,.pptx,.txt,.md,.zip" />
+            <input type="file" onChange={handleFileSelect} className="hidden" accept=".pdf,.docx,.pptx,.txt,.md,.zip,.jpg,.png,.mp4" />
             <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
               {selectedFile ? (
                 <>
                   <FileText className="w-10 h-10 text-primary mx-auto mb-2" />
                   <p className="text-sm font-medium text-dark">{selectedFile.name}</p>
                   <p className="text-xs text-gray-400 mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                  <button onClick={() => setSelectedFile(null)} className="mt-2 text-xs text-red-500 hover:text-red-600">Remove</button>
+                  <button onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }} className="mt-2 text-xs text-red-500 hover:text-red-600">Remove</button>
                 </>
               ) : (
                 <>
                   <Plus className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">Click to select a file</p>
-                  <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, TXT, ZIP (Max 50MB)</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, TXT, ZIP, Images, Videos (Max 50MB)</p>
                 </>
               )}
             </div>
           </label>
+          
+          {error && (
+            <p className="text-red-500 text-sm mt-2 text-center">{error}</p>
+          )}
           
           {uploading && (
             <div className="mt-4">
@@ -292,8 +319,8 @@ const FileUploadModal = ({ module, onClose, onUploadComplete }: { module: Module
             Upload
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 
@@ -308,20 +335,8 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
   const files = module.files || [];
   
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
           <div>
             <h2 className="text-2xl font-bold text-dark flex items-center gap-2">
@@ -339,10 +354,10 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
         
         <div className="flex-1 overflow-y-auto p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-dark">Available Materials ({files.length})</h3>
+            <h3 className="font-semibold text-dark">Materials ({files.length})</h3>
             <button onClick={() => onUploadFile(module)} className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 flex items-center gap-1">
               <Upload className="w-3 h-3" />
-              Upload File
+              Upload
             </button>
           </div>
           
@@ -356,14 +371,13 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
                       <FileText className="w-5 h-5 text-primary" />
                       <div className="flex-1">
                         <p className="font-medium text-dark">{file.name}</p>
-                        <p className="text-xs text-gray-400">Size: {file.size} • Uploaded: {file.uploadDate}</p>
+                        <p className="text-xs text-gray-400">{file.size} • Uploaded: {file.uploadDate}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => onDownloadFile(module.id, file)}
-                      disabled={isDownloaded}
                       className={`ml-3 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                        isDownloaded ? 'bg-green-100 text-green-600 cursor-default' : 'bg-primary text-white hover:bg-accent'
+                        isDownloaded ? 'bg-green-100 text-green-600' : 'bg-primary text-white hover:bg-accent'
                       }`}
                     >
                       {isDownloaded ? <CheckCircle2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
@@ -384,8 +398,8 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 
@@ -393,7 +407,6 @@ const FileBrowser = ({ module, onClose, downloadedFiles, onDownloadFile, onUploa
 export function LearningSection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSubject, setActiveSubject] = useState('All');
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadedModules, setDownloadedModules] = useState<DownloadedModule[]>([]);
   const [downloadedFiles, setDownloadedFiles] = useState<string[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: CourseFile[] }>({});
@@ -406,17 +419,21 @@ export function LearningSection() {
   const [modules, setModules] = useState<Module[]>(sampleModules);
   
   useEffect(() => {
+    // Load downloaded modules
     const saved = loadDownloadedModules();
     setDownloadedModules(saved);
     
+    // Load downloaded files tracking
     const savedDownloadedFiles = localStorage.getItem(DOWNLOADED_FILES_KEY);
     if (savedDownloadedFiles) {
       setDownloadedFiles(JSON.parse(savedDownloadedFiles));
     }
     
+    // Load uploaded files
     const savedUploads = loadUploadedFiles();
     setUploadedFiles(savedUploads);
     
+    // Merge uploaded files into modules
     const updatedModules = sampleModules.map(module => ({
       ...module,
       files: savedUploads[module.id] || []
@@ -440,15 +457,13 @@ export function LearningSection() {
   }, [searchQuery, activeSubject, downloadedModules, showOfflineOnly, modules]);
 
   const handleDownloadFile = async (moduleId: string, file: CourseFile) => {
-    setDownloadingId(`${moduleId}-${file.id}`);
-    setDownloadError(null);
-    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!file.fileData) {
+        throw new Error('File data not available');
+      }
       
-      const content = `File: ${file.name}\nCourse: ${modules.find(m => m.id === moduleId)?.title}\nSize: ${file.size}\nUpload Date: ${file.uploadDate}\n\nThis file was downloaded from LearnSphere.`;
-      
-      const blob = new Blob([content], { type: 'text/plain' });
+      // Convert Base64 to Blob and download
+      const blob = base64ToBlob(file.fileData, file.name);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -458,12 +473,14 @@ export function LearningSection() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
+      // Track downloaded file
       if (!downloadedFiles.includes(file.id)) {
-        const updated = [...downloadedFiles, file.id];
-        setDownloadedFiles(updated);
-        localStorage.setItem(DOWNLOADED_FILES_KEY, JSON.stringify(updated));
+        const updatedFiles = [...downloadedFiles, file.id];
+        setDownloadedFiles(updatedFiles);
+        localStorage.setItem(DOWNLOADED_FILES_KEY, JSON.stringify(updatedFiles));
       }
       
+      // Track downloaded module
       if (!downloadedModules.find(m => m.id === moduleId)) {
         const module = modules.find(m => m.id === moduleId);
         if (module) {
@@ -481,8 +498,6 @@ export function LearningSection() {
     } catch (error) {
       setDownloadError(`Failed to download ${file.name}`);
       setTimeout(() => setDownloadError(null), 3000);
-    } finally {
-      setDownloadingId(null);
     }
   };
 
@@ -508,10 +523,6 @@ export function LearningSection() {
     saveDownloadedModules(updated);
   };
 
-  const handleOpenModule = (module: DownloadedModule) => {
-    setSelectedModule(module);
-  };
-
   const handleViewFiles = (module: Module) => {
     setSelectedModule(module);
   };
@@ -522,7 +533,6 @@ export function LearningSection() {
   };
 
   const isModuleDownloaded = (id: string) => downloadedModules.some(m => m.id === id);
-  const totalStorageUsed = downloadedModules.length;
 
   return (
     <section className="py-16 bg-secondary/10 min-h-[calc(100vh-80px)]">
@@ -629,20 +639,14 @@ export function LearningSection() {
                         <FileText className="w-3 h-3" />
                         <span>{hasFiles ? `${module.files.length} file(s)` : 'No materials'}</span>
                       </div>
-                      {hasFiles && (
-                        <button onClick={() => handleViewFiles(module)} className="text-primary hover:underline flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          Browse
-                        </button>
-                      )}
                     </div>
                     
                     <div className="flex gap-2">
-                      <button onClick={() => handleViewFiles(module)} className="flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200">
+                      <button onClick={() => handleViewFiles(module)} className="flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-primary text-white hover:bg-accent">
                         <FolderOpen className="w-4 h-4" />
-                        Browse
+                        Browse Files
                       </button>
-                      <button onClick={() => handleOpenUploadModal(module)} className="py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center bg-primary/10 text-primary hover:bg-primary/20" title="Upload materials">
+                      <button onClick={() => handleOpenUploadModal(module)} className="py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center bg-gray-100 text-gray-700 hover:bg-gray-200" title="Upload materials">
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
@@ -702,10 +706,10 @@ export function LearningSection() {
                         <h3 className="font-semibold text-dark mb-1">{module.title}</h3>
                         <p className="text-gray text-xs mb-3 line-clamp-2">{module.description}</p>
                         <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
-                          <span>Downloaded: {module.downloadedAt.toLocaleDateString()}</span>
+                          <span>Downloaded: {new Date(module.downloadedAt).toLocaleDateString()}</span>
                           <span>{module.downloadedFiles?.length || 0} file(s)</span>
                         </div>
-                        <button onClick={() => handleOpenModule(module)} className="w-full py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20">Open Module</button>
+                        <button onClick={() => handleViewFiles(module)} className="w-full py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20">Open Module</button>
                       </div>
                     ))}
                   </div>
