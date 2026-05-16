@@ -60,10 +60,10 @@ const sampleModules: Module[] = [
     files: [
       {
         id: 'CS321-1',
-        name: 'Programming Languages Syllabus.pdf',
-        size: '1.2 MB',
+        name: 'Concepts of Programming Languages by Robert W. Sebesta.pdf',
+        size: '3.9 MB',
         type: 'pdf',
-        url: '/modules/CS321/syllabus.pdf'
+        url: '/modules/CS321/Concepts of Programming Languages by Robert W. Sebesta.pdf'
       },
       {
         id: 'CS321-2',
