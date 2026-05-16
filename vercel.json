@@ -1,18 +1,32 @@
 {
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
-    "functions": {
-    "api/upload.js": {
-      "maxDuration": 60
-    }
-  }
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "vite"
+  "framework": "vite",
+  "functions": {
+    "api/upload.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/download.js": {
+      "maxDuration": 60
+    },
+    "api/delete.js": {
+      "maxDuration": 30
+    },
+    "api/list-files.js": {
+      "maxDuration": 30
+    }
+  }
 }
