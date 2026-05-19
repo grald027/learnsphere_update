@@ -639,7 +639,7 @@ ${fileContext}
 6. Use clean, professional formatting with proper spacing
 
 **FORMAT EXAMPLE:**
-1. Introduction
+1. Definition
    The presentation covers three main topics in computer vision.
 
 2. Key Topics
@@ -687,21 +687,6 @@ ${sourcesList || 'No specific sources found. Use your knowledge to provide accur
 5. Prioritize .edu, .org, and academic sources over general websites
 6. If a source is highly relevant, mark it with ⭐
 
-**REFERENCE SECTION FORMAT:**
-📚 References
-1. [Source Name](URL) - Type (⭐ if high relevance)
-
-**FORMAT EXAMPLE:**
-1. Introduction
-   Context about the topic [Stanford CS229](https://cs229.stanford.edu).
-
-2. Key Concepts
-   • First concept with explanation [MIT OCW](https://ocw.mit.edu)
-   • Second concept with supporting evidence
-
-📚 References
-1. [Stanford CS229](https://cs229.stanford.edu) - Course (⭐)
-2. [MIT OpenCourseWare](https://ocw.mit.edu) - Educational Resource`;
   } else {
     systemPrompt = `You are Sphere, an academic CS assistant.
 
