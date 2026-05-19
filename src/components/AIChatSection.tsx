@@ -348,31 +348,95 @@ async function callGroqAPI(
   const sourcesList = ragSources.map((s, i) => `${i + 1}. [${s.name}](${s.url})`).join('\n');
 
   let fileContext = '';
+  let hasFile = false;
+  
   if (fileAnalysis) {
+    hasFile = true;
     fileContext = `
-**UPLOADED FILE ANALYSIS:**
+**UPLOADED FILE CONTENT:**
 - File: ${fileAnalysis.fileName}
 - Type: ${fileAnalysis.fileType.toUpperCase()}
 ${fileAnalysis.pageCount ? `- Pages: ${fileAnalysis.pageCount}` : ''}
 ${fileAnalysis.slideCount ? `- Slides: ${fileAnalysis.slideCount}` : ''}
-- Summary: ${fileAnalysis.summary}
-- Key Points: ${fileAnalysis.keyPoints.join(', ')}`;
+- Key Points: ${fileAnalysis.keyPoints.join(', ')}
+- Full Text Content:
+${fileAnalysis.fullText.substring(0, 3000)}`;
   }
 
-  const systemPrompt = `You are Sphere, an academic CS assistant.
+  // Determine if this is a casual conversation
+  const isCasualQuestion = (msg: string): boolean => {
+    const casualPatterns = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'how are you', 'what can you do', 'help'];
+    return casualPatterns.some(p => msg.toLowerCase().includes(p));
+  };
 
-**VERIFIED SOURCES YOU CAN CITE:**
-${sourcesList || 'No specific sources provided'}
+  const needsSources = !isCasualQuestion(userMessage) && !hasFile;
+  const isFileOnlyQuestion = hasFile && (userMessage.length < 30 || userMessage.includes('analyze') || userMessage.includes('summarize') || !userMessage.trim());
 
+  let systemPrompt = '';
+
+  if (hasFile) {
+    if (isFileOnlyQuestion) {
+      // STRICT: Only analyze the file, no external sources
+      systemPrompt = `You are Sphere, an academic assistant.
+
+**FILE TO ANALYZE:**
 ${fileContext}
 
+**CRITICAL RULES:**
+1. DO NOT cite any external sources - ONLY use the file content above
+2. DO NOT add references or bibliographies
+3. DO NOT use phrases like "As seen in the file", "According to the presentation", "The document shows"
+4. Just state the facts directly from the file
+5. If this is a PowerPoint, describe the key points from each slide section
+6. Be specific and reference actual content from the file
+7. Keep your response concise (3-5 paragraphs)
+
+**EXAMPLE STYLE:**
+"The presentation covers three main topics. First, image classification using CNNs achieves 94% accuracy. Second, natural language processing for sentiment analysis. Third, predictive modeling for healthcare applications."
+
+**DO NOT USE:**
+"Avoid: As seen in, According to, The file shows, The presentation indicates, As noted in"`;
+    } else {
+      // File + specific question - prioritize file
+      systemPrompt = `You are Sphere, an academic assistant.
+
+**UPLOADED FILE (Primary source):**
+${fileContext}
+
+**INSTRUCTIONS:**
+1. Answer primarily using the uploaded file content
+2. Keep responses direct and factual
+3. Do NOT use phrases like "As seen in the file" or "According to the presentation"
+4. Only use external knowledge if the file completely lacks the answer
+5. No citations or references unless absolutely necessary
+
+**FORMAT:** Clear, direct answers focusing on the file's actual content.`;
+    }
+  } else if (needsSources) {
+    // Academic question with sources
+    systemPrompt = `You are Sphere, an academic CS assistant.
+
+**VERIFIED SOURCES:**
+${sourcesList || 'No specific sources provided'}
+
 **RULES:**
-1. Include at least 2 citations using the sources above
+1. Include 1-2 inline citations where relevant
 2. Use format: [Source Name](URL)
 3. DO NOT add a "References" section
-4. If a file was uploaded, prioritize answering from its content
+4. DO NOT cite every sentence - cite only key claims
+5. Write naturally without repetitive phrases
 
-**FORMAT:** Provide a clear, educational answer with 2-3 inline citations.`;
+**FORMAT:** Clear, educational answer with occasional citations.`;
+  } else {
+    // Casual conversation - NO SOURCES
+    systemPrompt = `You are Sphere, an academic CS assistant.
+
+**RULES:**
+1. Do NOT include any citations or references
+2. Be conversational and helpful
+3. Keep responses concise for casual questions
+4. Answer naturally without markdown or special formatting`;
+  }
 
   const conversationMessages = [
     { role: 'system', content: systemPrompt },
@@ -392,8 +456,8 @@ ${fileContext}
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: conversationMessages,
-        temperature: 0.3,
-        max_tokens: 1000,
+        temperature: hasFile ? 0.2 : 0.3,
+        max_tokens: hasFile ? 800 : 1000,
       }),
     });
 
@@ -401,31 +465,52 @@ ${fileContext}
 
     const data = await response.json();
     let rawText = data.choices[0].message.content;
-    rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
+    
+    // Clean up repetitive phrases
+    const cleanupPatterns = [
+      /As seen in the uploaded file[,:]?\s*/gi,
+      /As seen in the file[,:]?\s*/gi,
+      /According to the (file|presentation|document|uploaded file)[,:]?\s*/gi,
+      /The (file|presentation|document) (shows|indicates|states|mentions|provides)[,:]?\s*/gi,
+      /As noted in the (file|presentation)[,:]?\s*/gi,
+      /As discussed in the (file|presentation)[,:]?\s*/gi,
+      /Looking at the (file|presentation)[,:]?\s*/gi,
+      /From the (file|presentation)[,:]?\s*/gi,
+    ];
+    
+    for (const pattern of cleanupPatterns) {
+      rawText = rawText.replace(pattern, '');
+    }
+    
+    rawText = rawText
+      .replace(/\*\*/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
-    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
-    const citedSources: Source[] = [];
-    let match;
+    // Only extract sources for non-casual, non-file responses
+    let finalSources: Source[] = [];
+    
+    if (needsSources && !hasFile) {
+      const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+      const citedSources: Source[] = [];
+      let match;
 
-    while ((match = linkRegex.exec(rawText)) !== null) {
-      const matchingSource = ragSources.find((s) => s.url === match[2] || s.name === match[1]);
-      if (matchingSource && matchingSource.verified) {
-        if (!citedSources.find((s) => s.url === matchingSource.url)) {
-          citedSources.push(matchingSource);
+      while ((match = linkRegex.exec(rawText)) !== null) {
+        const matchingSource = ragSources.find((s) => s.url === match[2] || s.name === match[1]);
+        if (matchingSource && matchingSource.verified) {
+          if (!citedSources.find((s) => s.url === matchingSource.url)) {
+            citedSources.push(matchingSource);
+          }
         }
       }
+
+      finalSources = citedSources.slice(0, 3);
+      
+      // Clean references section
+      rawText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
     }
 
-    let finalSources = citedSources;
-    if (finalSources.length < 2 && ragSources.length > 0) {
-      const unusedSources = ragSources.filter((s) => !citedSources.find((c) => c.url === s.url));
-      finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
-    }
-
-    finalSources = finalSources.slice(0, 5);
-    const cleanText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
-
-    return { text: cleanText, sources: finalSources };
+    return { text: rawText, sources: finalSources };
   } catch (error) {
     console.error('API call error:', error);
     throw error;
@@ -706,7 +791,7 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your academic CS assistant.\n\nI can analyze **PDF, TXT, and PPTX files** and provide detailed insights with citations.\n\n**Features:**\n• Upload PDF, TXT, or PPTX files for analysis\n• Get summaries and key points from documents\n• Ask questions about file content\n• Receive citations from verified academic sources\n\n**Try uploading a file** or ask me about:\n• Data Mining (CS327)\n• Machine Learning (CS328)\n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\nWhat would you like to learn today?",
+      text: "Hello! I'm Sphere, your academic CS assistant.\n\nI can analyze **PDF, TXT, and PPTX files** and provide detailed insights.\n\n**Features:**\n• Upload PDF, TXT, or PPTX files for analysis\n• Get summaries and key points from documents\n• Ask questions about file content\n• Receive citations from verified academic sources\n\n**Try uploading a file** or ask me about:\n• Data Mining (CS327)\n• Machine Learning (CS328)\n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\nWhat would you like to learn today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
@@ -811,7 +896,7 @@ export function AIChatSection() {
     let messageText = userCaption;
     if (hasFiles) {
       const fileNames = pendingFiles.map((f) => f.name).join(', ');
-      messageText = userCaption ? `[Uploaded: ${fileNames}]\n\n${userCaption}` : `[Uploaded: ${fileNames}]\n\nPlease analyze these files and provide key insights.`;
+      messageText = userCaption ? `[Uploaded: ${fileNames}]\n\n${userCaption}` : `Please analyze this file: ${fileNames}`;
     }
 
     const newUserMsg: Message = {
@@ -835,7 +920,7 @@ export function AIChatSection() {
         id: (Date.now() + 1).toString(),
         type: 'ai',
         text: !isOnline
-          ? "I'm offline. Please connect to the internet for file analysis and academic citations."
+          ? "I'm offline. Please connect to the internet for file analysis."
           : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -995,13 +1080,13 @@ export function AIChatSection() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold">Sphere</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">
-                    2-5 Verified Sources
+                    Verified Sources
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
                     PDF/TXT/PPTX
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">Analyze files · Real citations · Academic sources</p>
+                <p className="text-xs text-gray-400">Upload files · Direct answers · Clean responses</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -1197,7 +1282,7 @@ export function AIChatSection() {
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
               {statusOnline
-                ? 'Upload PDF, TXT, or PPTX for instant analysis with academic citations'
+                ? 'Upload files for analysis - AI gives direct, clean answers without repetitive phrases'
                 : 'Configure API key for file analysis'}
             </p>
           </div>
