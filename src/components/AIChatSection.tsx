@@ -86,9 +86,11 @@ interface FileAnalysisResult {
 
 /* ─── Config ─────────────────────────────────────────────────────────────── */
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// Simple environment variable access
-const GROQ_API_KEY = process.env.VITE_GROQ_API_KEY || '';
-const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
+// Safe Vite environment variable access
+const GROQ_API_KEY = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROQ_API_KEY 
+  ? import.meta.env.VITE_GROQ_API_KEY 
+  : '';
+const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== '' && GROQ_API_KEY !== 'undefined';
 
 /* ─── Course keyword map ─────────────────────────────────────────────────── */
 const COURSE_KEYWORDS: Record<string, string[]> = {
@@ -140,7 +142,6 @@ function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string
   const lowerMessage = userMessage.toLowerCase();
   const sources: Source[] = [];
 
-  // Only return sources if user explicitly asks for citations/references
   const asksForSources = lowerMessage.includes('cite') || 
                          lowerMessage.includes('reference') || 
                          lowerMessage.includes('source') ||
@@ -363,11 +364,9 @@ async function callGroqAPI(
   const hasFile = !!fileAnalysis;
   const wantsSources = ragSources.length > 0;
 
-  // Different prompts based on context
   let systemPrompt = '';
 
   if (hasFile) {
-    // When a file is uploaded: ONLY analyze the file, NO external citations
     systemPrompt = `You are Sphere, a file analysis assistant.
 
 **FILE CONTENT TO ANALYZE:**
@@ -388,11 +387,9 @@ ${fileAnalysis.fullText.substring(0, 3000)}
 3. DO NOT mention academic sources like MIT, arXiv, etc.
 4. Keep your response focused on what's actually in the file
 5. Be concise and direct
-6. If asked about specific content, refer directly to the file
 
 Your response should analyze and explain the content of this specific file only.`;
   } else if (wantsSources) {
-    // User explicitly asked for citations
     const sourcesList = ragSources.map((s, i) => `${i + 1}. [${s.name}](${s.url})`).join('\n');
     systemPrompt = `You are Sphere, an academic CS assistant.
 
@@ -407,7 +404,6 @@ ${sourcesList}
 
 Provide a clear answer with relevant citations.`;
   } else {
-    // Casual conversation - no citations needed
     systemPrompt = `You are Sphere, a helpful CS assistant.
 
 **INSTRUCTIONS:**
@@ -451,11 +447,9 @@ Provide a clean, helpful response.`;
     let rawText = data.choices[0].message.content;
     rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
 
-    // For file analysis, don't extract sources (we won't display them)
     let finalSources: Source[] = [];
     
     if (wantsSources && !hasFile) {
-      // Only extract sources when user explicitly asked and no file is uploaded
       const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
       const citedSources: Source[] = [];
       let match;
@@ -477,7 +471,6 @@ Provide a clean, helpful response.`;
       finalSources = finalSources.slice(0, 5);
     }
 
-    // Clean up any stray references
     const cleanText = rawText
       .replace(/##\s*References[\s\S]*$/i, '')
       .replace(/References:[\s\S]*$/i, '')
