@@ -5,8 +5,8 @@ import {
   Send, Bot, User, Loader2, Wifi, WifiOff, AlertCircle,
   Trash2, Download, Sparkles, Menu, Paperclip, FileText,
   X, Plus, ChevronLeft, Clock, MessageSquare, Zap,
-  BookOpen, ExternalLink, Search, CheckCircle, File,
-  FileUp, Database,
+  BookOpen, ExternalLink, Search, CheckCircle,
+  File, FileUp, Database,
 } from 'lucide-react';
 
 // ─── PDF.js worker ──────────────────────────────────────────────────────────
@@ -53,15 +53,6 @@ interface PendingFile {
   type: string;
 }
 
-interface BlobFile {
-  id: string;
-  name: string;
-  size: string;
-  type: string;
-  uploadDate: string;
-  url: string;
-}
-
 interface FileAnalysisResult {
   fileName: string;
   fileType: string;
@@ -79,53 +70,51 @@ const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_
 
 /* ─── Course keyword map for detection ───────────────────────────────────── */
 const COURSE_KEYWORDS: Record<string, string[]> = {
-  CS321: ['programming language', 'paradigm', 'functional', 'prolog', 'haskell', 'lambda', 'type system', 'syntax', 'semantics', 'compiler', 'interpreter', 'programming language theory'],
+  CS321: ['programming language', 'paradigm', 'functional', 'prolog', 'haskell', 'lambda', 'type system', 'syntax', 'semantics', 'compiler', 'interpreter'],
   CS322: ['software engineering', 'sdlc', 'agile', 'scrum', 'design pattern', 'uml', 'requirements', 'testing', 'waterfall', 'project management'],
-  CS323: ['ethics', 'social issue', 'professional practice', 'intellectual property', 'privacy', 'copyright', 'cybercrime', 'legal', 'acm code', 'professional responsibility'],
+  CS323: ['ethics', 'social issue', 'professional practice', 'intellectual property', 'privacy', 'copyright', 'cybercrime', 'legal', 'acm code'],
   CS324: ['graphics', 'visual computing', 'rendering', 'opengl', '3d', 'animation', 'rasterization', 'shading', 'texture', 'polygon', 'ray tracing'],
-  CS325: ['mobile', 'android', 'ios', 'flutter', 'react native', 'mobile development', 'mobile app', 'smartphone', 'tablet', 'ios development', 'android development'],
+  CS325: ['mobile', 'android', 'ios', 'flutter', 'react native', 'mobile development', 'mobile app', 'smartphone', 'tablet'],
   CS326: ['modeling', 'simulation', 'discrete event', 'monte carlo', 'queuing', 'stochastic', 'continuous simulation', 'system dynamics'],
-  CS327: ['data mining', 'clustering', 'classification', 'association rule', 'apriori', 'decision tree', 'naive bayes', 'k-means', 'pattern discovery', 'data mining'],
-  CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer', 'ml', 'machine learning'],
+  CS327: ['data mining', 'clustering', 'classification', 'association rule', 'apriori', 'decision tree', 'naive bayes', 'k-means', 'pattern discovery'],
+  CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer'],
 };
 
 /* ─── Verified academic sources database ─────────────────────────────────── */
 const VERIFIED_ACADEMIC_SOURCES: Record<string, Source[]> = {
   'data mining': [
-    { name: 'Data Mining: Concepts and Techniques (Han & Kamber)', url: 'https://www.sciencedirect.com/book/9780123814791/data-mining-concepts-and-techniques', courseCode: 'CS327', type: 'book', verified: true },
-    { name: 'Introduction to Data Mining (Tan, Steinbach, Kumar)', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook/index.php', courseCode: 'CS327', type: 'textbook', verified: true },
-    { name: 'UC Irvine Machine Learning Repository', url: 'https://archive.ics.uci.edu/ml/index.php', courseCode: 'CS327', type: 'dataset', verified: true },
+    { name: 'Data Mining: Concepts and Techniques', url: 'https://www.sciencedirect.com/book/9780123814791/data-mining-concepts-and-techniques', courseCode: 'CS327', type: 'book', verified: true },
+    { name: 'Introduction to Data Mining', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook/index.php', courseCode: 'CS327', type: 'textbook', verified: true },
+    { name: 'UC Irvine Machine Learning Repository', url: 'https://archive.ics.uci.edu', courseCode: 'CS327', type: 'dataset', verified: true },
   ],
   'machine learning': [
-    { name: 'Stanford CS229: Machine Learning', url: 'https://cs229.stanford.edu/', courseCode: 'CS328', type: 'course', verified: true },
-    { name: 'Deep Learning Book (Goodfellow et al.)', url: 'https://www.deeplearningbook.org/', courseCode: 'CS328', type: 'book', verified: true },
-    { name: 'Google Machine Learning Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'tutorial', verified: true },
+    { name: 'Stanford CS229: Machine Learning', url: 'https://cs229.stanford.edu', courseCode: 'CS328', type: 'course', verified: true },
+    { name: 'Deep Learning Book', url: 'https://www.deeplearningbook.org', courseCode: 'CS328', type: 'book', verified: true },
+    { name: 'Google ML Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'tutorial', verified: true },
   ],
   'programming': [
-    { name: 'Structure and Interpretation of Computer Programs', url: 'https://mitpress.mit.edu/sites/default/files/sicp/index.html', courseCode: 'CS321', type: 'book', verified: true },
-    { name: 'Programming Language Pragmatics', url: 'https://www.cs.rochester.edu/~scott/pragmatics/', courseCode: 'CS321', type: 'book', verified: true },
+    { name: 'SICP', url: 'https://mitpress.mit.edu/sites/default/files/sicp/index.html', courseCode: 'CS321', type: 'book', verified: true },
+    { name: 'Programming Language Pragmatics', url: 'https://www.cs.rochester.edu/~scott/pragmatics', courseCode: 'CS321', type: 'book', verified: true },
   ],
   'software engineering': [
-    { name: 'Software Engineering (Ian Sommerville)', url: 'https://www.software-engin.com/', courseCode: 'CS322', type: 'book', verified: true },
-    { name: 'Agile Alliance Resources', url: 'https://www.agilealliance.org/agile101/', courseCode: 'CS322', type: 'guide', verified: true },
+    { name: 'Software Engineering (Sommerville)', url: 'https://www.software-engin.com', courseCode: 'CS322', type: 'book', verified: true },
+    { name: 'Agile Alliance', url: 'https://www.agilealliance.org/agile101', courseCode: 'CS322', type: 'guide', verified: true },
   ],
   'general': [
-    { name: 'MIT OpenCourseWare Computer Science', url: 'https://ocw.mit.edu/search/?d=Electrical%20Engineering%20and%20Computer%20Science', courseCode: 'CS', type: 'course', verified: true },
-    { name: 'arXiv Computer Science', url: 'https://arxiv.org/archive/cs', courseCode: 'CS', type: 'papers', verified: true },
-    { name: 'Google Scholar', url: 'https://scholar.google.com/', courseCode: 'CS', type: 'search', verified: true },
+    { name: 'MIT OpenCourseWare', url: 'https://ocw.mit.edu', courseCode: 'CS', type: 'course', verified: true },
+    { name: 'arXiv CS', url: 'https://arxiv.org/archive/cs', courseCode: 'CS', type: 'papers', verified: true },
+    { name: 'Google Scholar', url: 'https://scholar.google.com', courseCode: 'CS', type: 'search', verified: true },
   ],
 };
 
 /* ─── Helper Functions ────────────────────────────────────────────────────── */
 
-// Format file size for display
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-// Detect relevant courses from message
 function detectRelevantCourses(message: string): string[] {
   const lower = message.toLowerCase();
   const detected: string[] = [];
@@ -137,7 +126,6 @@ function detectRelevantCourses(message: string): string[] {
   return detected.length > 0 ? detected : Object.keys(COURSE_KEYWORDS);
 }
 
-// Get verified sources for topic
 function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string[]): Source[] {
   const lowerMessage = userMessage.toLowerCase();
   const sources: Source[] = [];
@@ -148,34 +136,23 @@ function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string
     }
   }
   
-  // Also check by course code
   for (const course of detectedCourses) {
-    if (course === 'CS327' && !sources.some(s => s.courseCode === 'CS327')) {
-      sources.push(...VERIFIED_ACADEMIC_SOURCES['data mining']);
-    }
-    if (course === 'CS328' && !sources.some(s => s.courseCode === 'CS328')) {
-      sources.push(...VERIFIED_ACADEMIC_SOURCES['machine learning']);
-    }
-    if (course === 'CS321' && !sources.some(s => s.courseCode === 'CS321')) {
-      sources.push(...VERIFIED_ACADEMIC_SOURCES['programming']);
-    }
-    if (course === 'CS322' && !sources.some(s => s.courseCode === 'CS322')) {
-      sources.push(...VERIFIED_ACADEMIC_SOURCES['software engineering']);
-    }
+    if (course === 'CS327') sources.push(...VERIFIED_ACADEMIC_SOURCES['data mining']);
+    if (course === 'CS328') sources.push(...VERIFIED_ACADEMIC_SOURCES['machine learning']);
+    if (course === 'CS321') sources.push(...VERIFIED_ACADEMIC_SOURCES['programming']);
+    if (course === 'CS322') sources.push(...VERIFIED_ACADEMIC_SOURCES['software engineering']);
   }
   
   if (sources.length < 2) {
     sources.push(...VERIFIED_ACADEMIC_SOURCES['general']);
   }
   
-  // Remove duplicates and limit to 5
   const unique = Array.from(new Map(sources.map(s => [s.url, s])).values());
   return unique.slice(0, 5);
 }
 
 /* ─── File Analysis Functions ─────────────────────────────────────────────── */
 
-// Extract text from PDF files
 async function analyzePDF(file: File): Promise<FileAnalysisResult> {
   try {
     const arrayBuffer = await file.arrayBuffer();
@@ -194,8 +171,6 @@ async function analyzePDF(file: File): Promise<FileAnalysisResult> {
     }
     
     const fullText = fullTexts.join('\n\n').substring(0, 8000);
-    
-    // Generate summary and key points
     const analysis = await generateFileSummary(fullText, file.name, 'pdf');
     
     return {
@@ -212,12 +187,10 @@ async function analyzePDF(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-// Extract text from TXT files
 async function analyzeTXT(file: File): Promise<FileAnalysisResult> {
   try {
     const text = await file.text();
     const fullText = text.substring(0, 8000);
-    
     const analysis = await generateFileSummary(fullText, file.name, 'txt');
     
     return {
@@ -233,19 +206,14 @@ async function analyzeTXT(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-// Extract text from PPTX files (basic extraction without external deps)
 async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
   try {
-    // For PPTX, we'll extract what we can from the filename and provide basic analysis
-    // In a production environment, you'd use a library like mammoth.js or officegen
     const fileName = file.name;
     const fileSize = file.size;
     
-    // Try to read as text (some PPTX files have readable structure)
     let extractedText = '';
     try {
       const text = await file.text();
-      // Look for readable text in the XML structure
       const textMatches = text.match(/>([^<]{20,})</g);
       if (textMatches) {
         extractedText = textMatches.map(m => m.slice(1, -1)).join(' ').substring(0, 4000);
@@ -254,11 +222,8 @@ async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
       extractedText = '';
     }
     
-    const fullText = extractedText || `[PowerPoint file: ${fileName}] - Size: ${formatFileSize(fileSize)}. Content extraction requires specialized library.`;
-    
+    const fullText = extractedText || `[PowerPoint file: ${fileName}] - Size: ${formatFileSize(fileSize)}.`;
     const analysis = await generateFileSummary(fullText, file.name, 'pptx');
-    
-    // Estimate slide count based on file size (rough heuristic)
     const estimatedSlides = Math.max(1, Math.floor(fileSize / 50000));
     
     return {
@@ -275,10 +240,8 @@ async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-// Generate summary and key points using Groq API or fallback
 async function generateFileSummary(content: string, fileName: string, fileType: string): Promise<{ summary: string; keyPoints: string[] }> {
   if (!isAPIKeyConfigured || content.length < 100) {
-    // Fallback basic extraction
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
     const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 2 ? '.' : '');
     const keyPoints = sentences.slice(0, 4).map(s => s.trim().substring(0, 100));
@@ -321,12 +284,10 @@ Format your response as valid JSON only. No other text.`,
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
     
-    // Parse JSON response
     let parsed;
     try {
       parsed = JSON.parse(aiResponse);
     } catch {
-      // Fallback if JSON parsing fails
       const lines = aiResponse.split('\n').filter(l => l.trim());
       return {
         summary: lines[0] || 'Unable to generate summary.',
@@ -340,7 +301,6 @@ Format your response as valid JSON only. No other text.`,
     };
   } catch (error) {
     console.error('Summary generation error:', error);
-    // Fallback extraction
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
     const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 2 ? '.' : '');
     const keyPoints = sentences.slice(0, 4).map(s => s.trim().substring(0, 100));
@@ -348,7 +308,6 @@ Format your response as valid JSON only. No other text.`,
   }
 }
 
-// Main file analysis handler
 async function analyzeFile(file: File): Promise<FileAnalysisResult> {
   const fileType = file.name.split('.').pop()?.toLowerCase() || '';
   
@@ -365,14 +324,14 @@ async function analyzeFile(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-/* ─── RAG: build context from course files ───────────────────────────────── */
 async function buildRAGContext(userMessage: string): Promise<{ contextBlock: string; sources: Source[] }> {
   const relevantCourses = detectRelevantCourses(userMessage);
   const sources = getVerifiedSourcesForTopic(userMessage, relevantCourses);
   return { contextBlock: '', sources };
 }
 
-/* ─── Render text with inline links ──────────────────────────────────────── */
+/* ─── Components ──────────────────────────────────────────────────────────── */
+
 function RenderTextWithLinks({ text }: { text: string }) {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
@@ -405,9 +364,8 @@ function RenderTextWithLinks({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
-/* ─── File Analysis Display Component ────────────────────────────────────── */
 const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analysis }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = React.useState(false);
   
   const getFileIcon = () => {
     switch (analysis.fileType) {
@@ -474,7 +432,6 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
   );
 };
 
-/* ─── Source card component ──────────────────────────────────────────────── */
 const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index }) => (
   <a
     href={source.url}
@@ -494,8 +451,7 @@ const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index
   </a>
 );
 
-/* ─── Typing indicator ───────────────────────────────────────────────────── */
-const TypingDots = ({ label = '' }: { label?: string }) => (
+const TypingDots: React.FC<{ label?: string }> = ({ label = '' }) => (
   <div className="flex items-center gap-2">
     <div className="flex gap-1">
       {[0, 1, 2].map((i) => (
@@ -511,7 +467,6 @@ const TypingDots = ({ label = '' }: { label?: string }) => (
   </div>
 );
 
-/* ─── Message bubble with file analysis ──────────────────────────────────── */
 const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
   const isUser = msg.type === 'user';
   const hasSources = !isUser && msg.sources && msg.sources.length > 0;
@@ -536,12 +491,10 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
           {isUser ? msg.text : <RenderTextWithLinks text={msg.text} />}
         </div>
 
-        {/* File Analysis Display */}
-        {hasFileAnalysis && (
-          <FileAnalysisDisplay analysis={msg.fileAnalysis!} />
+        {hasFileAnalysis && msg.fileAnalysis && (
+          <FileAnalysisDisplay analysis={msg.fileAnalysis} />
         )}
 
-        {/* References Section */}
         {hasSources && (
           <div className="mt-2 pt-2 border-t border-gray-200 w-full">
             <div className="flex items-center gap-2 mb-2">
@@ -565,7 +518,6 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
   );
 };
 
-/* ─── Session list item ──────────────────────────────────────────────────── */
 const SessionItem: React.FC<{
   session: ChatSession;
   isActive: boolean;
@@ -596,7 +548,8 @@ const SessionItem: React.FC<{
   </div>
 );
 
-/* ─── Groq API call with file context ────────────────────────────────────── */
+/* ─── API Call ────────────────────────────────────────────────────────────── */
+
 async function callGroqAPI(
   userMessage: string,
   chatHistory: Message[],
@@ -616,29 +569,23 @@ ${fileAnalysis.pageCount ? `- Pages: ${fileAnalysis.pageCount}` : ''}
 ${fileAnalysis.slideCount ? `- Slides: ${fileAnalysis.slideCount}` : ''}
 - Summary: ${fileAnalysis.summary}
 - Key Points: ${fileAnalysis.keyPoints.join(', ')}
-- Content: ${fileAnalysis.fullText.substring(0, 2000)}
-
-Please answer questions based on this file content first.`;
+- Content: ${fileAnalysis.fullText.substring(0, 2000)}`;
   }
 
-  const systemPrompt = `You are Sphere, an academic CS assistant for LearnSphere.
+  const systemPrompt = `You are Sphere, an academic CS assistant.
 
 **VERIFIED SOURCES YOU CAN CITE:**
-${sourcesList || "No specific sources provided - answer based on your knowledge"}
+${sourcesList || "No specific sources provided"}
 
 ${fileContext}
 
-**CITATION RULES:**
-1. Include at least 2 citations using the sources listed above
+**RULES:**
+1. Include at least 2 citations using the sources above
 2. Use format: [Source Name](URL)
-3. Place citations naturally in your answer
-4. DO NOT add a "References" section - sources will be displayed separately
-5. If a file was uploaded, prioritize answering from its content
+3. DO NOT add a "References" section
+4. If a file was uploaded, prioritize answering from its content
 
-**RESPONSE FORMAT:**
-- Provide a clear, educational answer
-- Include 2-3 inline citations
-- Be concise and helpful`;
+**FORMAT:** Provide a clear, educational answer with 2-3 inline citations.`;
 
   const conversationMessages = [
     { role: 'system', content: systemPrompt },
@@ -648,7 +595,7 @@ ${fileContext}
     })),
   ];
 
-  let finalUserMessage = userMessage || (fileAnalysis ? "Please analyze this file and provide key insights." : "What would you like to know?");
+  const finalUserMessage = userMessage || (fileAnalysis ? "Please analyze this file." : "What would you like to know?");
   conversationMessages.push({ role: 'user', content: finalUserMessage });
 
   try {
@@ -669,7 +616,6 @@ ${fileContext}
     let rawText = data.choices[0].message.content;
     rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
 
-    // Parse sources that the AI actually cited
     const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
     const citedSources: Source[] = [];
     let match;
@@ -700,6 +646,7 @@ ${fileContext}
 }
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
+
 export function AIChatSection() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -721,6 +668,7 @@ export function AIChatSection() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadAllData(); }, []);
+  
   useEffect(() => {
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
@@ -735,9 +683,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v5');
+      const savedSessions = localStorage.getItem('sphere_sessions_v6');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v5');
+      const savedCurrent = localStorage.getItem('sphere_current_v6');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -756,7 +704,7 @@ export function AIChatSection() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
-    const newSession = {
+    const newSession: ChatSession = {
       id: newId,
       title: `Chat ${new Date().toLocaleDateString()}`,
       messages: [welcome],
@@ -767,10 +715,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions(prev => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v5', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v6', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v5', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v6', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -781,10 +729,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v5', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v6', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v5', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v6', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -819,7 +767,7 @@ export function AIChatSection() {
     setShowFileUpload(false);
   };
 
-  const processFiles = async (files: PendingFile[], userQuestion: string): Promise<FileAnalysisResult | null> => {
+  const processFiles = async (files: PendingFile[]): Promise<FileAnalysisResult | null> => {
     if (files.length === 0) return null;
     
     const file = files[0];
@@ -827,7 +775,6 @@ export function AIChatSection() {
     setUploadProgress(0);
     
     try {
-      // Simulate progress for better UX
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
@@ -901,7 +848,7 @@ export function AIChatSection() {
       let fileAnalysis: FileAnalysisResult | null = null;
       if (filesToProcess.length > 0) {
         setIsProcessingFile(true);
-        fileAnalysis = await processFiles(filesToProcess, userCaption);
+        fileAnalysis = await processFiles(filesToProcess);
         setIsProcessingFile(false);
       }
 
@@ -927,7 +874,7 @@ export function AIChatSection() {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: `I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again with a smaller file or different format.`,
+        text: `I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, errMsg];
@@ -973,7 +920,6 @@ export function AIChatSection() {
     <section className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl flex gap-4 h-[85vh]">
         
-        {/* Sidebar */}
         <AnimatePresence>
           {showHistory && (
             <motion.aside
@@ -1015,9 +961,7 @@ export function AIChatSection() {
           )}
         </AnimatePresence>
 
-        {/* Main Chat Panel */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl border shadow-sm overflow-hidden">
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 border-b bg-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -1052,7 +996,6 @@ export function AIChatSection() {
             </div>
           </div>
 
-          {/* Error Banner */}
           <AnimatePresence>
             {error && (
               <motion.div
@@ -1069,7 +1012,6 @@ export function AIChatSection() {
             )}
           </AnimatePresence>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/30">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1098,7 +1040,6 @@ export function AIChatSection() {
               messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)
             )}
             
-            {/* Searching Indicator */}
             {isSearching && !isTyping && !isProcessingFile && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1110,7 +1051,6 @@ export function AIChatSection() {
               </div>
             )}
             
-            {/* File Processing Indicator */}
             {isProcessingFile && analyzingFile && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
@@ -1133,7 +1073,6 @@ export function AIChatSection() {
               </div>
             )}
             
-            {/* Typing Indicator */}
             {isTyping && !isProcessingFile && !isSearching && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1148,9 +1087,7 @@ export function AIChatSection() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="p-4 border-t bg-white flex-shrink-0">
-            {/* Pending Files */}
             <AnimatePresence>
               {pendingFiles.length > 0 && (
                 <motion.div
@@ -1177,7 +1114,6 @@ export function AIChatSection() {
               )}
             </AnimatePresence>
 
-            {/* Input Form */}
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <button
                 type="button"
@@ -1204,7 +1140,6 @@ export function AIChatSection() {
               </button>
             </form>
 
-            {/* File Upload Panel */}
             <AnimatePresence>
               {showFileUpload && (
                 <motion.div
