@@ -101,17 +101,15 @@ const COURSE_KEYWORDS: Record<string, string[]> = {
   CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer'],
 };
 
-/* ─── Verified academic sources ─────────────────────────────────────────── */
+/* ─── Verified academic sources (only used when explicitly asked) ───────── */
 const VERIFIED_ACADEMIC_SOURCES: Record<string, Source[]> = {
   'data mining': [
     { name: 'Data Mining: Concepts and Techniques', url: 'https://www.sciencedirect.com/book/9780123814791', courseCode: 'CS327', type: 'book', verified: true },
     { name: 'Introduction to Data Mining', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook', courseCode: 'CS327', type: 'textbook', verified: true },
-    { name: 'UC Irvine ML Repository', url: 'https://archive.ics.uci.edu', courseCode: 'CS327', type: 'dataset', verified: true },
   ],
   'machine learning': [
     { name: 'Stanford CS229', url: 'https://cs229.stanford.edu', courseCode: 'CS328', type: 'course', verified: true },
     { name: 'Deep Learning Book', url: 'https://www.deeplearningbook.org', courseCode: 'CS328', type: 'book', verified: true },
-    { name: 'Google ML Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'tutorial', verified: true },
   ],
   general: [
     { name: 'MIT OpenCourseWare', url: 'https://ocw.mit.edu', courseCode: 'CS', type: 'course', verified: true },
@@ -134,17 +132,33 @@ function detectRelevantCourses(message: string): string[] {
       detected.push(code);
     }
   }
-  return detected.length > 0 ? detected : Object.keys(COURSE_KEYWORDS);
+  return detected;
 }
 
 function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string[]): Source[] {
   const lowerMessage = userMessage.toLowerCase();
   const sources: Source[] = [];
 
+  // Only return sources if user explicitly asks for citations/references
+  const asksForSources = lowerMessage.includes('cite') || 
+                         lowerMessage.includes('reference') || 
+                         lowerMessage.includes('source') ||
+                         lowerMessage.includes('academic') ||
+                         lowerMessage.includes('paper');
+
+  if (!asksForSources) {
+    return [];
+  }
+
   for (const [topic, topicSources] of Object.entries(VERIFIED_ACADEMIC_SOURCES)) {
     if (lowerMessage.includes(topic)) {
       sources.push(...topicSources);
     }
+  }
+
+  for (const course of detectedCourses) {
+    if (course === 'CS327') sources.push(...VERIFIED_ACADEMIC_SOURCES['data mining']);
+    if (course === 'CS328') sources.push(...VERIFIED_ACADEMIC_SOURCES['machine learning']);
   }
 
   if (sources.length < 2) {
@@ -184,10 +198,10 @@ async function generateFileSummary(
           {
             role: 'system',
             content: `You are a file analysis assistant. Analyze the provided ${fileType.toUpperCase()} file content and return a JSON object with:
-1. "summary": A concise 2-3 sentence summary
-2. "keyPoints": An array of 3-5 key points
+1. "summary": A concise 2-3 sentence summary of the main content
+2. "keyPoints": An array of 3-5 key points from the document
 
-Format your response as valid JSON only.`,
+Format your response as valid JSON only. No additional text.`,
           },
           {
             role: 'user',
@@ -345,34 +359,64 @@ async function callGroqAPI(
   ragSources: Source[],
   fileAnalysis?: FileAnalysisResult
 ): Promise<{ text: string; sources: Source[] }> {
-  const sourcesList = ragSources.map((s, i) => `${i + 1}. [${s.name}](${s.url})`).join('\n');
+  const hasFile = !!fileAnalysis;
+  const wantsSources = ragSources.length > 0;
 
-  let fileContext = '';
-  if (fileAnalysis) {
-    fileContext = `
-**UPLOADED FILE ANALYSIS:**
-- File: ${fileAnalysis.fileName}
-- Type: ${fileAnalysis.fileType.toUpperCase()}
-${fileAnalysis.pageCount ? `- Pages: ${fileAnalysis.pageCount}` : ''}
-${fileAnalysis.slideCount ? `- Slides: ${fileAnalysis.slideCount}` : ''}
-- Summary: ${fileAnalysis.summary}
-- Key Points: ${fileAnalysis.keyPoints.join(', ')}`;
-  }
+  // Different prompts based on context
+  let systemPrompt = '';
 
-  const systemPrompt = `You are Sphere, an academic CS assistant.
+  if (hasFile) {
+    // When a file is uploaded: ONLY analyze the file, NO external citations
+    systemPrompt = `You are Sphere, a file analysis assistant.
+
+**FILE CONTENT TO ANALYZE:**
+File: ${fileAnalysis.fileName}
+Type: ${fileAnalysis.fileType.toUpperCase()}
+${fileAnalysis.pageCount ? `Pages: ${fileAnalysis.pageCount}` : ''}
+${fileAnalysis.slideCount ? `Slides: ${fileAnalysis.slideCount}` : ''}
+
+Summary: ${fileAnalysis.summary}
+Key Points: ${fileAnalysis.keyPoints.join(', ')}
+
+Full content excerpt:
+${fileAnalysis.fullText.substring(0, 3000)}
+
+**INSTRUCTIONS:**
+1. Answer based ONLY on the uploaded file content
+2. DO NOT add external citations or references
+3. DO NOT mention academic sources like MIT, arXiv, etc.
+4. Keep your response focused on what's actually in the file
+5. Be concise and direct
+6. If asked about specific content, refer directly to the file
+
+Your response should analyze and explain the content of this specific file only.`;
+  } else if (wantsSources) {
+    // User explicitly asked for citations
+    const sourcesList = ragSources.map((s, i) => `${i + 1}. [${s.name}](${s.url})`).join('\n');
+    systemPrompt = `You are Sphere, an academic CS assistant.
 
 **VERIFIED SOURCES YOU CAN CITE:**
-${sourcesList || 'No specific sources provided'}
+${sourcesList}
 
-${fileContext}
-
-**RULES:**
-1. Include at least 2 citations using the sources above
+**INSTRUCTIONS:**
+1. Include 2-3 citations from the sources above
 2. Use format: [Source Name](URL)
-3. DO NOT add a "References" section
-4. If a file was uploaded, prioritize answering from its content
+3. Place citations naturally in your answer
+4. Keep response focused and educational
 
-**FORMAT:** Provide a clear, educational answer with 2-3 inline citations.`;
+Provide a clear answer with relevant citations.`;
+  } else {
+    // Casual conversation - no citations needed
+    systemPrompt = `You are Sphere, a helpful CS assistant.
+
+**INSTRUCTIONS:**
+1. Answer naturally without citations
+2. Be conversational and friendly
+3. Focus on explaining concepts clearly
+4. Don't add references or academic sources unless asked
+
+Provide a clean, helpful response.`;
+  }
 
   const conversationMessages = [
     { role: 'system', content: systemPrompt },
@@ -382,7 +426,10 @@ ${fileContext}
     })),
   ];
 
-  const finalUserMessage = userMessage || (fileAnalysis ? 'Please analyze this file.' : 'What would you like to know?');
+  let finalUserMessage = userMessage;
+  if (hasFile && !userMessage) {
+    finalUserMessage = `Please analyze this file and explain its main content.`;
+  }
   conversationMessages.push({ role: 'user', content: finalUserMessage });
 
   try {
@@ -393,7 +440,7 @@ ${fileContext}
         model: 'llama-3.3-70b-versatile',
         messages: conversationMessages,
         temperature: 0.3,
-        max_tokens: 1000,
+        max_tokens: hasFile ? 800 : 600,
       }),
     });
 
@@ -403,27 +450,38 @@ ${fileContext}
     let rawText = data.choices[0].message.content;
     rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
 
-    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
-    const citedSources: Source[] = [];
-    let match;
+    // For file analysis, don't extract sources (we won't display them)
+    let finalSources: Source[] = [];
+    
+    if (wantsSources && !hasFile) {
+      // Only extract sources when user explicitly asked and no file is uploaded
+      const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+      const citedSources: Source[] = [];
+      let match;
 
-    while ((match = linkRegex.exec(rawText)) !== null) {
-      const matchingSource = ragSources.find((s) => s.url === match[2] || s.name === match[1]);
-      if (matchingSource && matchingSource.verified) {
-        if (!citedSources.find((s) => s.url === matchingSource.url)) {
-          citedSources.push(matchingSource);
+      while ((match = linkRegex.exec(rawText)) !== null) {
+        const matchingSource = ragSources.find((s) => s.url === match[2] || s.name === match[1]);
+        if (matchingSource && matchingSource.verified) {
+          if (!citedSources.find((s) => s.url === matchingSource.url)) {
+            citedSources.push(matchingSource);
+          }
         }
       }
+
+      finalSources = citedSources;
+      if (finalSources.length < 2 && ragSources.length > 0) {
+        const unusedSources = ragSources.filter((s) => !citedSources.find((c) => c.url === s.url));
+        finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
+      }
+      finalSources = finalSources.slice(0, 5);
     }
 
-    let finalSources = citedSources;
-    if (finalSources.length < 2 && ragSources.length > 0) {
-      const unusedSources = ragSources.filter((s) => !citedSources.find((c) => c.url === s.url));
-      finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
-    }
-
-    finalSources = finalSources.slice(0, 5);
-    const cleanText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
+    // Clean up any stray references
+    const cleanText = rawText
+      .replace(/##\s*References[\s\S]*$/i, '')
+      .replace(/References:[\s\S]*$/i, '')
+      .replace(/\[[0-9]+\]\s*/g, '')
+      .trim();
 
     return { text: cleanText, sources: finalSources };
   } catch (error) {
@@ -687,9 +745,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v7');
+      const savedSessions = localStorage.getItem('sphere_sessions_v8');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v7');
+      const savedCurrent = localStorage.getItem('sphere_current_v8');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -706,7 +764,7 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your academic CS assistant.\n\nI can analyze **PDF, TXT, and PPTX files** and provide detailed insights with citations.\n\n**Features:**\n• Upload PDF, TXT, or PPTX files for analysis\n• Get summaries and key points from documents\n• Ask questions about file content\n• Receive citations from verified academic sources\n\n**Try uploading a file** or ask me about:\n• Data Mining (CS327)\n• Machine Learning (CS328)\n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\nWhat would you like to learn today?",
+      text: "Hello! I'm Sphere, your CS assistant.\n\n**What I can do:**\n• Analyze PDF, TXT, and PPTX files you upload\n• Answer questions about CS topics naturally\n• Provide academic citations when asked\n\n**Try:**\n• Uploading a file - I'll analyze it without extra citations\n• Asking \"What is machine learning?\" - clean, natural answer\n• Asking \"Can you cite sources for ML?\" - then I'll add references\n\nWhat would you like to learn today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
@@ -721,10 +779,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -735,10 +793,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -811,7 +869,7 @@ export function AIChatSection() {
     let messageText = userCaption;
     if (hasFiles) {
       const fileNames = pendingFiles.map((f) => f.name).join(', ');
-      messageText = userCaption ? `[Uploaded: ${fileNames}]\n\n${userCaption}` : `[Uploaded: ${fileNames}]\n\nPlease analyze these files and provide key insights.`;
+      messageText = userCaption ? `${userCaption}` : `Please analyze this file.`;
     }
 
     const newUserMsg: Message = {
@@ -835,7 +893,7 @@ export function AIChatSection() {
         id: (Date.now() + 1).toString(),
         type: 'ai',
         text: !isOnline
-          ? "I'm offline. Please connect to the internet for file analysis and academic citations."
+          ? "I'm offline. Please connect to the internet."
           : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -884,7 +942,7 @@ export function AIChatSection() {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: `I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+        text: `Sorry, I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, errMsg];
@@ -994,14 +1052,11 @@ export function AIChatSection() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold">Sphere</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">
-                    2-5 Verified Sources
-                  </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-                    PDF/TXT/PPTX
+                    File Analysis
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">Analyze files · Real citations · Academic sources</p>
+                <p className="text-xs text-gray-400">Clean answers · Citations only when asked</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -1039,13 +1094,13 @@ export function AIChatSection() {
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                   <FileUp className="w-8 h-8 text-primary/60" />
                 </div>
-                <p className="text-gray-500 text-sm max-w-md">Upload PDF, TXT, or PPTX files for analysis, or ask about CS topics.</p>
+                <p className="text-gray-500 text-sm max-w-md">Upload a PDF, TXT, or PPTX file for analysis, or ask a CS question.</p>
                 <div className="flex gap-2 mt-4 flex-wrap justify-center">
                   <button
-                    onClick={() => setInputValue('What is data mining?')}
+                    onClick={() => setInputValue('What is machine learning?')}
                     className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
                   >
-                    What is data mining?
+                    Ask about ML
                   </button>
                   <button
                     onClick={() => setShowFileUpload(true)}
@@ -1065,7 +1120,7 @@ export function AIChatSection() {
                   <Search className="w-4 h-4 text-primary animate-pulse" />
                 </div>
                 <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border">
-                  <TypingDots label="Searching for sources..." />
+                  <TypingDots label="Thinking..." />
                 </div>
               </div>
             )}
@@ -1095,7 +1150,7 @@ export function AIChatSection() {
                   <Bot className="w-4 h-4 text-primary" />
                 </div>
                 <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border">
-                  <TypingDots label="Generating response..." />
+                  <TypingDots label="Responding..." />
                 </div>
               </div>
             )}
@@ -1135,7 +1190,7 @@ export function AIChatSection() {
                 type="button"
                 onClick={() => setShowFileUpload(!showFileUpload)}
                 className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
-                title="Upload PDF, TXT, or PPTX file"
+                title="Upload file"
               >
                 <Paperclip className="w-4 h-4" />
               </button>
@@ -1143,7 +1198,7 @@ export function AIChatSection() {
                 ref={inputRef}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Ask about your file or CS topic..."
+                placeholder="Ask a question or upload a file..."
                 className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 disabled={isTyping || isSearching || isProcessingFile}
               />
@@ -1184,11 +1239,6 @@ export function AIChatSection() {
                         <p className="text-xs text-gray-400 mt-1">PDF, TXT, PPTX up to 20MB each</p>
                       </div>
                     </label>
-                    <div className="flex gap-3 mt-3 text-[10px] text-gray-400 justify-center">
-                      <span>✓ PDF text extraction</span>
-                      <span>✓ TXT full text</span>
-                      <span>✓ PPTX slide analysis</span>
-                    </div>
                   </div>
                 </motion.div>
               )}
@@ -1197,12 +1247,12 @@ export function AIChatSection() {
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
               {statusOnline
-                ? 'Upload PDF, TXT, or PPTX for instant analysis with academic citations'
-                : 'Configure API key for file analysis'}
+                ? 'Clean answers · Citations only when explicitly asked'
+                : 'Configure API key to start'}
             </p>
           </div>
         </div>
       </div>
-    </section>
+    </motion.div>
   );
 }
