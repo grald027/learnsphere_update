@@ -364,7 +364,6 @@ async function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: 
   
   // 4. Add general academic resources
   const generalResources: Source[] = [
-    { name: 'MIT OpenCourseWare', url: 'https://ocw.mit.edu/search/?q=' + encodeURIComponent(userMessage), courseCode: 'CS', type: 'course', verified: true },
     { name: 'Coursera', url: 'https://www.coursera.org/courses?query=' + encodeURIComponent(userMessage), courseCode: 'CS', type: 'course', verified: true },
     { name: 'edX', url: 'https://www.edx.org/search?q=' + encodeURIComponent(userMessage), courseCode: 'CS', type: 'course', verified: true },
     { name: 'GeeksforGeeks', url: 'https://www.geeksforgeeks.org/search/?q=' + encodeURIComponent(userMessage), courseCode: 'CS', type: 'tutorial', verified: true },
