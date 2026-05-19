@@ -18,7 +18,7 @@ interface GroqResponse {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const API_ENDPOINT = "/api/chat"; // Your Vercel serverless function endpoint
+const API_ENDPOINT = "/api/chat";
 
 const SYSTEM_PROMPT = `You are a helpful, friendly AI assistant. 
 Answer questions clearly and concisely. 
@@ -59,7 +59,7 @@ function ChatMessage({ message }: { message: Message }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function AIChatSection() {
+export function AIChatSection() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: generateId(),
@@ -75,12 +75,10 @@ export default function AIChatSection() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -106,7 +104,6 @@ export default function AIChatSection() {
     setIsLoading(true);
 
     try {
-      // Build the messages array for the API (exclude UI-only fields)
       const apiMessages = [
         { role: "system", content: SYSTEM_PROMPT },
         ...updatedMessages.map(({ role, content }) => ({ role, content })),
@@ -169,7 +166,6 @@ export default function AIChatSection() {
 
   return (
     <>
-      {/* ── Styles ────────────────────────────────────────────────────────── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -203,7 +199,6 @@ export default function AIChatSection() {
           overflow: hidden;
         }
 
-        /* ── Header ── */
         .chat-header {
           display: flex;
           align-items: center;
@@ -225,12 +220,8 @@ export default function AIChatSection() {
           0%,100% { opacity: 1; }
           50%      { opacity: 0.4; }
         }
-        .header-title {
-          font-size: 15px; font-weight: 600; letter-spacing: 0.01em;
-        }
-        .header-sub {
-          font-size: 11px; color: var(--text-muted); margin-top: 1px;
-        }
+        .header-title { font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
+        .header-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
         .clear-btn {
           background: none; border: 1px solid var(--border);
           color: var(--text-muted); font-family: var(--font);
@@ -242,7 +233,6 @@ export default function AIChatSection() {
           background: rgba(79,142,247,.06);
         }
 
-        /* ── Messages ── */
         .messages-area {
           flex: 1;
           overflow-y: auto;
@@ -254,11 +244,8 @@ export default function AIChatSection() {
         }
         .messages-area::-webkit-scrollbar { width: 4px; }
         .messages-area::-webkit-scrollbar-track { background: transparent; }
-        .messages-area::-webkit-scrollbar-thumb {
-          background: var(--border); border-radius: 4px;
-        }
+        .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-        /* ── Message rows ── */
         .message-row {
           display: flex;
           align-items: flex-end;
@@ -272,7 +259,6 @@ export default function AIChatSection() {
         .user-row  { flex-direction: row-reverse; }
         .ai-row    { flex-direction: row; }
 
-        /* ── Avatar ── */
         .avatar {
           width: 30px; height: 30px; border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
@@ -283,12 +269,8 @@ export default function AIChatSection() {
           background: linear-gradient(135deg, #4f8ef7, #7c5cfc);
           color: #fff; border: none;
         }
-        .ai-row .avatar {
-          background: var(--surface2);
-          color: var(--accent);
-        }
+        .ai-row .avatar { background: var(--surface2); color: var(--accent); }
 
-        /* ── Bubbles ── */
         .bubble {
           max-width: min(72%, 520px);
           padding: 12px 16px 10px;
@@ -306,21 +288,15 @@ export default function AIChatSection() {
           border-bottom-left-radius: 5px;
           color: var(--text);
         }
-        .bubble-text {
-          font-size: 14px; line-height: 1.6;
-          white-space: pre-wrap; word-break: break-word;
-        }
+        .bubble-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
         .timestamp {
-          display: block;
-          font-size: 10px;
+          display: block; font-size: 10px;
           color: rgba(255,255,255,.35);
-          margin-top: 5px;
-          text-align: right;
+          margin-top: 5px; text-align: right;
           font-family: var(--mono);
         }
         .assistant-bubble .timestamp { color: var(--text-muted); }
 
-        /* ── Typing indicator ── */
         .typing-bubble {
           display: flex; align-items: center; gap: 5px;
           padding: 14px 18px;
@@ -337,29 +313,22 @@ export default function AIChatSection() {
           30%          { transform: translateY(-6px); opacity: 1; }
         }
 
-        /* ── Error banner ── */
         .error-banner {
           margin: 0 20px;
           padding: 11px 16px;
           border-radius: 10px;
           background: rgba(239,68,68,.1);
           border: 1px solid rgba(239,68,68,.25);
-          color: #fca5a5;
-          font-size: 13px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          flex-shrink: 0;
-          animation: fadeUp .2s ease;
+          color: #fca5a5; font-size: 13px;
+          display: flex; align-items: center;
+          justify-content: space-between; gap: 10px;
+          flex-shrink: 0; animation: fadeUp .2s ease;
         }
         .error-close {
           background: none; border: none; cursor: pointer;
-          color: #fca5a5; font-size: 16px; line-height: 1;
-          padding: 0 2px;
+          color: #fca5a5; font-size: 16px; line-height: 1; padding: 0 2px;
         }
 
-        /* ── Input area ── */
         .input-area {
           padding: 16px 20px 20px;
           border-top: 1px solid var(--border);
@@ -367,9 +336,7 @@ export default function AIChatSection() {
           flex-shrink: 0;
         }
         .input-row {
-          display: flex;
-          align-items: flex-end;
-          gap: 10px;
+          display: flex; align-items: flex-end; gap: 10px;
           background: var(--surface2);
           border: 1px solid var(--border);
           border-radius: 14px;
@@ -381,19 +348,14 @@ export default function AIChatSection() {
           box-shadow: 0 0 0 3px rgba(79,142,247,.06);
         }
         .chat-textarea {
-          flex: 1;
-          background: none; border: none; outline: none;
+          flex: 1; background: none; border: none; outline: none;
           color: var(--text); font-family: var(--font);
           font-size: 14px; line-height: 1.5;
-          resize: none;
-          min-height: 24px; max-height: 160px;
-          overflow-y: auto;
+          resize: none; min-height: 24px; max-height: 160px; overflow-y: auto;
         }
         .chat-textarea::placeholder { color: var(--text-muted); }
         .chat-textarea::-webkit-scrollbar { width: 3px; }
-        .chat-textarea::-webkit-scrollbar-thumb {
-          background: var(--border); border-radius: 3px;
-        }
+        .chat-textarea::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
         .send-btn {
           width: 36px; height: 36px; border-radius: 10px;
           background: linear-gradient(135deg, #4f8ef7, #7c5cfc);
@@ -403,20 +365,12 @@ export default function AIChatSection() {
         }
         .send-btn:hover:not(:disabled) { opacity: .9; transform: scale(1.05); }
         .send-btn:active:not(:disabled) { transform: scale(.95); }
-        .send-btn:disabled {
-          opacity: .35; cursor: not-allowed;
-        }
+        .send-btn:disabled { opacity: .35; cursor: not-allowed; }
         .send-btn svg { width: 16px; height: 16px; fill: #fff; }
-
-        .input-hint {
-          font-size: 11px; color: var(--text-muted);
-          text-align: center; margin-top: 8px;
-        }
+        .input-hint { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; }
       `}</style>
 
-      {/* ── Layout ─────────────────────────────────────────────────────────── */}
       <div className="chat-section">
-        {/* Header */}
         <header className="chat-header">
           <div className="header-left">
             <div className="header-dot" />
@@ -425,12 +379,9 @@ export default function AIChatSection() {
               <div className="header-sub">Powered by Llama 3.3 · 70B</div>
             </div>
           </div>
-          <button className="clear-btn" onClick={clearChat}>
-            Clear chat
-          </button>
+          <button className="clear-btn" onClick={clearChat}>Clear chat</button>
         </header>
 
-        {/* Messages */}
         <div className="messages-area">
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
@@ -439,17 +390,13 @@ export default function AIChatSection() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Error */}
         {error && (
           <div className="error-banner">
             <span>⚠ {error}</span>
-            <button className="error-close" onClick={() => setError(null)}>
-              ×
-            </button>
+            <button className="error-close" onClick={() => setError(null)}>×</button>
           </div>
         )}
 
-        {/* Input */}
         <div className="input-area">
           <div className="input-row">
             <textarea
