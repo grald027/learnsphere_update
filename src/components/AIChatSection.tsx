@@ -687,6 +687,10 @@ ${sourcesList || 'No specific sources found. Use your knowledge to provide accur
 5. Prioritize .edu, .org, and academic sources over general websites
 6. If a source is highly relevant, mark it with ⭐
 
+📚 References
+1. [Stanford CS229](https://cs229.stanford.edu) - Course (⭐)
+2. [MIT OpenCourseWare](https://ocw.mit.edu) - Educational Resource`;
+
   } else {
     systemPrompt = `You are Sphere, an academic CS assistant.
 
