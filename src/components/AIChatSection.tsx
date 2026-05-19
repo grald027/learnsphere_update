@@ -157,38 +157,37 @@ function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string
   return unique.slice(0, 5);
 }
 
-// Clean and format AI response text while preserving citations
-function cleanAndFormatResponse(text: string): string {
-  let cleaned = text;
+// Clean and format AI response text
+function formatAIResponse(text: string): string {
+  // First, ensure proper spacing after periods
+  let formatted = text.replace(/\.([A-Z])/g, '. $1');
   
-  // Remove markdown bold/italic but preserve citation links
-  cleaned = cleaned.replace(/\*\*(?!.*\]\()/g, '');
-  cleaned = cleaned.replace(/\*(?!.*\]\()/g, '');
+  // Fix numbered lists - ensure proper spacing after numbers
+  formatted = formatted.replace(/(\d+)\.([A-Z])/g, '$1. $2');
+  formatted = formatted.replace(/(\d+)\.\s*/g, '\n$1. ');
   
-  // Fix numbering - ensure proper spacing after numbers
-  cleaned = cleaned.replace(/^(\d+)\./gm, '$1.');
-  cleaned = cleaned.replace(/(\d+)\.([A-Z])/g, '$1. $2');
+  // Ensure bullet points have proper spacing
+  formatted = formatted.replace(/[•\-]\s*/g, '\n• ');
   
-  // Ensure proper spacing after colons
-  cleaned = cleaned.replace(/:\s*/g, ': ');
+  // Add line breaks before numbered items for better readability
+  formatted = formatted.replace(/(\d+\.\s+[A-Z])/g, '\n\n$1');
   
-  // Fix bullet points
-  cleaned = cleaned.replace(/^[-•]\s*/gm, '• ');
+  // Add line breaks before section headers
+  formatted = formatted.replace(/([A-Z][a-z]+:)/g, '\n\n$1');
   
-  // Remove excessive newlines (more than 2)
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  // Remove excessive line breaks
+  formatted = formatted.replace(/\n{3,}/g, '\n\n');
   
-  // Ensure spaces after periods
-  cleaned = cleaned.replace(/\.([A-Z])/g, '. $1');
+  // Add spacing after sections
+  formatted = formatted.replace(/(\d+\.\s+[^\n]+\n)/g, '$1\n');
   
-  // Remove "END OF UPLOADED FILE CONTENT" and similar markers
-  cleaned = cleaned.replace(/END OF UPLOADED FILE CONTENT.*$/i, '');
-  cleaned = cleaned.replace(/^-{3,}.*$/gm, '');
+  // Ensure proper spacing between list items
+  formatted = formatted.replace(/\n•/g, '\n  •');
   
-  // Trim whitespace
-  cleaned = cleaned.trim();
+  // Clean up spaces
+  formatted = formatted.trim();
   
-  return cleaned;
+  return formatted;
 }
 
 /* ─── File Analysis Functions ────────────────────────────────────────────── */
@@ -412,7 +411,7 @@ ${fileAnalysis.fullText.substring(0, 3000)}`;
 
   if (hasFile) {
     if (isFileOnlyQuestion) {
-      // STRICT: Only analyze the file, no external sources
+      // STRICT: Only analyze the file, no external sources - with clean formatting
       systemPrompt = `You are Sphere, an academic assistant.
 
 **FILE TO ANALYZE:**
@@ -422,13 +421,29 @@ ${fileContext}
 1. DO NOT cite any external sources - ONLY use the file content above
 2. DO NOT add references or bibliographies
 3. DO NOT use phrases like "As seen in the file", "According to the presentation"
-4. Just state the facts directly from the file
-5. Keep your response clean and well-formatted with proper spacing
-6. Use numbered lists or bullet points for better readability
+4. Format your response with clear structure:
+   - Use numbered sections for different topics
+   - Use bullet points for lists
+   - Add line breaks between sections
+   - Keep paragraphs concise
+5. Be specific and reference actual content from the file
+6. Use clean, professional formatting with proper spacing
 
-**FORMAT:** Clean, direct answers focusing on the file's actual content.`;
+**FORMAT EXAMPLE:**
+1. Introduction
+   The presentation covers three main topics in computer vision.
+
+2. Key Topics
+   • Image classification using CNNs (94% accuracy)
+   • Natural language processing for sentiment analysis
+   • Predictive modeling for healthcare applications
+
+3. Conclusion
+   The document emphasizes practical applications and real-world implementations.
+
+**DO NOT USE:** "As seen in", "According to", "The file shows" - just state facts directly.`;
     } else {
-      // File + specific question - prioritize file
+      // File + specific question - prioritize file with clean formatting
       systemPrompt = `You are Sphere, an academic assistant.
 
 **UPLOADED FILE (Primary source):**
@@ -437,35 +452,55 @@ ${fileContext}
 **INSTRUCTIONS:**
 1. Answer primarily using the uploaded file content
 2. Keep responses direct and factual
-3. Only use external knowledge if the file completely lacks the answer
+3. Format your response with clean structure:
+   - Use numbered sections when listing multiple points
+   - Use bullet points for features or lists
+   - Add line breaks between different topics
+   - Keep paragraphs short (2-3 sentences)
 4. No citations or references unless absolutely necessary
-5. Format with clean spacing and lists where appropriate
 
-**FORMAT:** Clear, direct answers focusing on the file's actual content.`;
+**FORMAT:** Clear, well-structured answers focusing on the file's actual content.`;
     }
   } else if (needsSources) {
-    // Academic question with sources - PRESERVE CITATIONS
+    // Academic question with sources and clean formatting
     systemPrompt = `You are Sphere, an academic CS assistant.
 
-**VERIFIED SOURCES YOU CAN CITE:**
+**VERIFIED SOURCES:**
 ${sourcesList || 'No specific sources provided'}
 
 **RULES:**
-1. Include at least 2 citations using the sources above
+1. Include 1-2 inline citations where relevant
 2. Use format: [Source Name](URL)
-3. DO NOT add a "References" section
-4. Write naturally with proper spacing and formatting
+3. Format your response with:
+   - Numbered sections for main topics
+   - Bullet points for lists
+   - Proper line breaks between sections
+   - Clean, professional spacing
+4. DO NOT add a "References" section
+5. Write naturally without repetitive phrases
 
-**FORMAT:** Provide a clear, educational answer with 2-3 inline citations.`;
+**FORMAT EXAMPLE:**
+1. Introduction
+   Context about the topic.
+
+2. Key Concepts
+   • First concept with explanation
+   • Second concept with [citation](url)
+
+3. Summary
+   Concluding thoughts.`;
   } else {
-    // Casual conversation - NO SOURCES
+    // Casual conversation with clean formatting
     systemPrompt = `You are Sphere, an academic CS assistant.
 
 **RULES:**
 1. Do NOT include any citations or references
 2. Be conversational and helpful
-3. Keep responses concise for casual questions
-4. Answer naturally with clean formatting`;
+3. Format responses cleanly:
+   - Use bullet points for lists when appropriate
+   - Keep paragraphs short
+   - Add line breaks for readability
+4. Answer naturally without markdown or special formatting`;
   }
 
   const conversationMessages = [
@@ -476,7 +511,7 @@ ${sourcesList || 'No specific sources provided'}
     })),
   ];
 
-  const finalUserMessage = userMessage || (fileAnalysis ? 'Please analyze this file with clean formatting.' : 'What would you like to know?');
+  const finalUserMessage = userMessage || (fileAnalysis ? 'Please analyze this file.' : 'What would you like to know?');
   conversationMessages.push({ role: 'user', content: finalUserMessage });
 
   try {
@@ -487,7 +522,7 @@ ${sourcesList || 'No specific sources provided'}
         model: 'llama-3.3-70b-versatile',
         messages: conversationMessages,
         temperature: hasFile ? 0.2 : 0.3,
-        max_tokens: hasFile ? 1000 : 1200,
+        max_tokens: hasFile ? 800 : 1000,
       }),
     });
 
@@ -496,7 +531,7 @@ ${sourcesList || 'No specific sources provided'}
     const data = await response.json();
     let rawText = data.choices[0].message.content;
     
-    // Clean up repetitive phrases (but preserve citations)
+    // Clean up repetitive phrases
     const cleanupPatterns = [
       /As seen in the uploaded file[,:]?\s*/gi,
       /As seen in the file[,:]?\s*/gi,
@@ -513,9 +548,14 @@ ${sourcesList || 'No specific sources provided'}
     }
     
     // Apply clean formatting
-    rawText = cleanAndFormatResponse(rawText);
+    rawText = formatAIResponse(rawText);
+    
+    // Remove markdown bold/italic
+    rawText = rawText.replace(/\*\*/g, '');
+    rawText = rawText.replace(/\n{3,}/g, '\n\n');
+    rawText = rawText.trim();
 
-    // Extract sources for academic questions
+    // Only extract sources for non-casual, non-file responses
     let finalSources: Source[] = [];
     
     if (needsSources && !hasFile) {
@@ -532,12 +572,7 @@ ${sourcesList || 'No specific sources provided'}
         }
       }
 
-      // If no citations found in text, add default sources
-      if (citedSources.length === 0 && ragSources.length > 0) {
-        finalSources = ragSources.slice(0, 3);
-      } else {
-        finalSources = citedSources.slice(0, 3);
-      }
+      finalSources = citedSources.slice(0, 3);
       
       // Clean references section
       rawText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
@@ -551,85 +586,123 @@ ${sourcesList || 'No specific sources provided'}
 }
 
 /* ─── Components ─────────────────────────────────────────────────────────── */
-const CopyButton: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-      title="Copy to clipboard"
-    >
-      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-    </button>
-  );
-};
-
 const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
 
-  // Split by newlines for better paragraph handling
+  // Split text into paragraphs and format with proper spacing
   const paragraphs = text.split('\n\n');
   
-  if (paragraphs.length > 1) {
-    return (
-      <div className="space-y-2">
-        {paragraphs.map((para, idx) => {
-          if (para.trim().startsWith('•') || para.trim().match(/^\d+\./)) {
-            // Handle lists
-            return <div key={idx} className="mb-1">{parseInlineLinks(para)}</div>;
-          }
-          return <p key={idx} className="mb-2 leading-relaxed">{parseInlineLinks(para)}</p>;
-        })}
-      </div>
-    );
-  }
-  
-  return <>{parseInlineLinks(text)}</>;
-  
-  function parseInlineLinks(content: string) {
+  const formattedParagraphs = paragraphs.map((paragraph, pIdx) => {
+    // Handle bullet points
+    if (paragraph.includes('•') || paragraph.match(/^\d+\./)) {
+      const lines = paragraph.split('\n');
+      return (
+        <div key={pIdx} className="space-y-1">
+          {lines.map((line, lIdx) => {
+            if (line.trim().startsWith('•')) {
+              return <div key={lIdx} className="flex gap-2 ml-2">{line}</div>;
+            }
+            if (line.match(/^\d+\./)) {
+              return <div key={lIdx} className="mt-2 font-medium">{line}</div>;
+            }
+            return <div key={lIdx}>{line}</div>;
+          })}
+        </div>
+      );
+    }
+    
+    // Regular paragraph
+    if (paragraph.trim()) {
+      return <p key={pIdx} className="mb-3">{paragraph}</p>;
+    }
+    return null;
+  });
+
+  // Process links within the formatted content
+  const processLinks = (content: string) => {
+    const linkParts: React.ReactNode[] = [];
+    let lastIdx = 0;
+    let linkMatch;
     const linkRegexLocal = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
-    const localParts: React.ReactNode[] = [];
-    let localLastIndex = 0;
-    let localMatch;
     
-    // Reset regex
-    linkRegexLocal.lastIndex = 0;
-    
-    while ((localMatch = linkRegexLocal.exec(content)) !== null) {
-      if (localMatch.index > localLastIndex) {
-        localParts.push(<span key={localLastIndex}>{content.slice(localLastIndex, localMatch.index)}</span>);
+    while ((linkMatch = linkRegexLocal.exec(content)) !== null) {
+      if (linkMatch.index > lastIdx) {
+        linkParts.push(<span key={lastIdx}>{content.slice(lastIdx, linkMatch.index)}</span>);
       }
-      localParts.push(
+      linkParts.push(
         <a
-          key={localMatch.index}
-          href={localMatch[2]}
+          key={linkMatch.index}
+          href={linkMatch[2]}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 text-primary underline underline-offset-2 hover:text-accent font-medium"
         >
-          {localMatch[1]}
+          {linkMatch[1]}
           <ExternalLink className="w-2.5 h-2.5" />
         </a>
       );
-      localLastIndex = localMatch.index + localMatch[0].length;
+      lastIdx = linkMatch.index + linkMatch[0].length;
     }
     
-    if (localLastIndex < content.length) {
-      localParts.push(<span key={localLastIndex}>{content.slice(localLastIndex)}</span>);
+    if (lastIdx < content.length) {
+      linkParts.push(<span key={lastIdx}>{content.slice(lastIdx)}</span>);
     }
     
-    return <>{localParts}</>;
-  }
+    return linkParts;
+  };
+
+  // Rebuild the content with proper spacing
+  return (
+    <div className="space-y-2 leading-relaxed">
+      {paragraphs.map((paragraph, idx) => {
+        if (!paragraph.trim()) return null;
+        
+        // Check if it's a numbered section
+        if (paragraph.match(/^\d+\./)) {
+          const lines = paragraph.split('\n');
+          return (
+            <div key={idx} className="mt-3 first:mt-0">
+              {lines.map((line, lineIdx) => {
+                if (line.match(/^\d+\./)) {
+                  return (
+                    <div key={lineIdx} className="font-semibold text-gray-800 mt-2 first:mt-0">
+                      {processLinks(line)}
+                    </div>
+                  );
+                }
+                if (line.trim().startsWith('•')) {
+                  return (
+                    <div key={lineIdx} className="flex gap-2 ml-4 text-gray-700">
+                      <span className="text-primary">•</span>
+                      <span>{processLinks(line.substring(1))}</span>
+                    </div>
+                  );
+                }
+                if (line.trim()) {
+                  return (
+                    <div key={lineIdx} className="ml-2 text-gray-700">
+                      {processLinks(line)}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          );
+        }
+        
+        // Regular paragraph with link processing
+        return (
+          <p key={idx} className="text-gray-700">
+            {processLinks(paragraph)}
+          </p>
+        );
+      })}
+    </div>
+  );
 };
 
 const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analysis }) => {
@@ -653,12 +726,12 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         {getFileIcon()}
         <span className="text-xs font-semibold text-blue-900">File Analysis: {analysis.fileName}</span>
-        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded-full text-blue-700">{analysis.fileType.toUpperCase()}</span>
+        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-700">{analysis.fileType.toUpperCase()}</span>
         {analysis.pageCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">{analysis.pageCount} pages</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{analysis.pageCount} pages</span>
         )}
         {analysis.slideCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">~{analysis.slideCount} slides</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">~{analysis.slideCount} slides</span>
         )}
       </div>
 
@@ -705,7 +778,7 @@ const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index
     <span className="font-mono text-green-600 font-bold">[{index}]</span>
     <span className="truncate max-w-[200px]">{source.name}</span>
     {source.courseCode && source.courseCode !== 'CS' && (
-      <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded-full">{source.courseCode}</span>
+      <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded">{source.courseCode}</span>
     )}
     <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100" />
   </a>
@@ -727,6 +800,31 @@ const TypingDots: React.FC<{ label?: string }> = ({ label = '' }) => (
   </div>
 );
 
+// New component for copy button
+const CopyButton: React.FC<{ text: string }> = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+      title="Copy to clipboard"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+};
+
 const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
   const isUser = msg.type === 'user';
   const hasSources = !isUser && msg.sources && msg.sources.length > 0;
@@ -736,7 +834,7 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row group'}`}
+      className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
     >
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -747,19 +845,21 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
       </div>
 
       <div className={`flex flex-col gap-2 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
-        <div
-          className={`relative px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-            isUser
-              ? 'bg-primary text-white rounded-br-sm'
-              : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
-          }`}
-        >
+        <div className="group relative">
+          <div
+            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+              isUser
+                ? 'bg-primary text-white rounded-br-sm'
+                : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
+            }`}
+          >
+            {isUser ? msg.text : <RenderTextWithLinks text={msg.text} />}
+          </div>
           {!isUser && (
-            <div className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute -top-2 -right-2">
               <CopyButton text={msg.text} />
             </div>
           )}
-          {isUser ? msg.text : <RenderTextWithLinks text={msg.text} />}
         </div>
 
         {hasFileAnalysis && msg.fileAnalysis && <FileAnalysisDisplay analysis={msg.fileAnalysis} />}
@@ -769,7 +869,7 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-3.5 h-3.5 text-green-600" />
               <span className="text-xs font-semibold text-gray-700">REFERENCES</span>
-              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
                 {msg.sources!.length} {msg.sources!.length === 1 ? 'source' : 'sources'}
               </span>
             </div>
@@ -810,7 +910,7 @@ const SessionItem: React.FC<{
     </div>
     <button
       onClick={onDelete}
-      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all"
+      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
     >
       <Trash2 className="w-3.5 h-3.5" />
     </button>
@@ -859,9 +959,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v8');
+      const savedSessions = localStorage.getItem('sphere_sessions_v7');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v8');
+      const savedCurrent = localStorage.getItem('sphere_current_v7');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -878,7 +978,7 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your academic CS assistant.\n\nI can analyze **PDF, TXT, and PPTX files** and provide detailed insights with citations.\n\n**Features:**\n• Upload PDF, TXT, or PPTX files for analysis\n• Get summaries and key points from documents\n• Ask questions about file content\n• Receive citations from verified academic sources\n\n**Try uploading a file** or ask me about:\n• Data Mining (CS327)\n• Machine Learning (CS328)\n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\nWhat would you like to learn today?",
+      text: "Hello! I'm Sphere, your academic CS assistant.\n\nI can analyze **PDF, TXT, and PPTX files** and provide detailed insights.\n\n**Features:**\n• Upload PDF, TXT, or PPTX files for analysis\n• Get summaries and key points from documents\n• Ask questions about file content\n• Receive citations from verified academic sources\n\n**Try uploading a file** or ask me about:\n• Data Mining (CS327)\n• Machine Learning (CS328)\n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\nWhat would you like to learn today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
@@ -893,10 +993,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -907,10 +1007,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1007,7 +1107,7 @@ export function AIChatSection() {
         id: (Date.now() + 1).toString(),
         type: 'ai',
         text: !isOnline
-          ? "I'm offline. Please connect to the internet for file analysis and academic citations."
+          ? "I'm offline. Please connect to the internet for file analysis."
           : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -1173,7 +1273,7 @@ export function AIChatSection() {
                     PDF/TXT/PPTX
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">Upload files · Citations from verified sources</p>
+                <p className="text-xs text-gray-400">Upload files · Direct answers · Clean responses</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -1369,7 +1469,7 @@ export function AIChatSection() {
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
               {statusOnline
-                ? 'Upload files for analysis - Get citations from verified academic sources'
+                ? 'Upload files for analysis - AI gives direct, clean answers without repetitive phrases'
                 : 'Configure API key for file analysis'}
             </p>
           </div>
