@@ -81,9 +81,6 @@ const sampleModules: Module[] = [
     description: 'Study of programming language paradigms, design principles, and implementation strategies.',
     files: [
       { id: 'CS321-1', name: 'Concepts of Programming Languages by Robert W. Sebesta.pdf', size: '3.9 MB', type: 'pdf', url: '/modules/CS321/Concepts of Programming Languages by Robert W. Sebesta.pdf' },
-      { id: 'CS321-2', name: 'Introduction to Programming Paradigms.pptx', size: '2.5 MB', type: 'pptx', url: '/modules/CS321/paradigms.pptx' },
-      { id: 'CS321-3', name: 'Functional Programming Notes.pdf', size: '1.8 MB', type: 'pdf', url: '/modules/CS321/functional.pdf' },
-      { id: 'CS321-4', name: 'Programming Languages Exercise Set.zip', size: '3.2 MB', type: 'zip', url: '/modules/CS321/exercises.zip' },
     ],
   },
   {
@@ -91,10 +88,8 @@ const sampleModules: Module[] = [
     subject: 'Software Engineering',
     description: 'Software development lifecycle, requirements engineering, design patterns, project management.',
     files: [
-      { id: 'CS322-1', name: 'Software Engineering Syllabus.pdf', size: '1.1 MB', type: 'pdf', url: '/modules/CS322/syllabus.pdf' },
-      { id: 'CS322-2', name: 'Software Development Lifecycle.pptx', size: '2.8 MB', type: 'pptx', url: '/modules/CS322/sdlc.pptx' },
-      { id: 'CS322-3', name: 'Design Patterns Reference.pdf', size: '3.5 MB', type: 'pdf', url: '/modules/CS322/design-patterns.pdf' },
-      { id: 'CS322-4', name: 'Project Management Templates.docx', size: '1.5 MB', type: 'docx', url: '/modules/CS322/templates.docx' },
+      { id: 'CS322-1', name: 'software_engineering.pdf', size: '3,446KB', type: 'pdf', url: '/modules/CS322/software_engineering.pdf' },
+     
     ],
   },
   {
@@ -102,9 +97,9 @@ const sampleModules: Module[] = [
     subject: 'Social & Professional',
     description: 'Ethical and social issues in computing, professional responsibilities, legal aspects.',
     files: [
-      { id: 'CS323-1', name: 'Social Issues Syllabus.pdf', size: '1.0 MB', type: 'pdf', url: '/modules/CS323/syllabus.pdf' },
-      { id: 'CS323-2', name: 'Computing Ethics Case Studies.pdf', size: '2.2 MB', type: 'pdf', url: '/modules/CS323/ethics.pdf' },
-      { id: 'CS323-3', name: 'Professional Code of Conduct.pptx', size: '1.5 MB', type: 'pptx', url: '/modules/CS323/code-of-conduct.pptx' },
+      { id: 'CS323-1', name: 'Lec01_Toward A Framework for Ethical Analysis .pdf', size: '292KB', type: 'pdf', url: '/modules/CS323/Lec01_Toward A Framework for Ethical Analysis .pdf' },
+      { id: 'CS323-2', name: 'Lecture 02_Social Context.pdf', size: '691KB', type: 'pdf', url: '/modules/CS323/Lecture 02_Social Context.pdf' },
+      { id: 'CS323-3', name: 'Lecture 03_Framework of Ethical Decision Making.pdf', size: '551KB', type: 'pdf', url: '/modules/CS323/Lecture 03_Framework of Ethical Decision Making.pdf' },
     ],
   },
   {
@@ -112,10 +107,8 @@ const sampleModules: Module[] = [
     subject: 'Graphics & Visual Computing',
     description: 'Computer graphics fundamentals, 2D/3D rendering, visual design, animation.',
     files: [
-      { id: 'CS324-1', name: 'Graphics Computing Syllabus.pdf', size: '1.2 MB', type: 'pdf', url: '/modules/CS324/syllabus.pdf' },
-      { id: 'CS324-2', name: 'Introduction to OpenGL.pdf', size: '3.5 MB', type: 'pdf', url: '/modules/CS324/opengl.pdf' },
-      { id: 'CS324-3', name: '3D Rendering Techniques.pptx', size: '4.2 MB', type: 'pptx', url: '/modules/CS324/rendering.pptx' },
-      { id: 'CS324-4', name: 'Graphics Sample Projects.zip', size: '5.5 MB', type: 'zip', url: '/modules/CS324/projects.zip' },
+      { id: 'CS324-1', name: 'Topic 1-  Computer Graphics and Visual Computing.pdf', size: '321KB', type: 'pdf', url: '/modules/CS324/Topic 1-  Computer Graphics and Visual Computing.pdf' },
+      { id: 'CS324-2', name: 'Topic 2 - Characteristics of digital and traditional graphicsL.pdf', size: '667KB', type: 'pdf', url: '/modules/CS324/Topic 2 - Characteristics of digital and traditional graphics.pdf' },
     ],
   },
   {
@@ -123,11 +116,8 @@ const sampleModules: Module[] = [
     subject: 'Mobile Development',
     description: 'Mobile app development for iOS and Android, UI/UX design, cross-platform solutions.',
     files: [
-      { id: 'CS325-1', name: 'Mobile Computing Syllabus.pdf', size: '1.1 MB', type: 'pdf', url: '/modules/CS325/syllabus.pdf' },
-      { id: 'CS325-2', name: 'iOS Development Fundamentals.pdf', size: '3.8 MB', type: 'pdf', url: '/modules/CS325/ios.pdf' },
-      { id: 'CS325-3', name: 'Android Studio Setup Guide.docx', size: '1.8 MB', type: 'docx', url: '/modules/CS325/android-setup.docx' },
-      { id: 'CS325-4', name: 'Cross-Platform Development.pptx', size: '2.5 MB', type: 'pptx', url: '/modules/CS325/cross-platform.pptx' },
-      { id: 'CS325-5', name: 'Mobile App Sample Code.zip', size: '6.5 MB', type: 'zip', url: '/modules/CS325/sample-code.zip' },
+      { id: 'CS325-1', name: '1 INTRO TO MOBILE COMPUTING v2.pptx', size: '2,846KB', type: 'pptx', url: '/modules/CS325/1 INTRO TO MOBILE COMPUTING v2.pptx' },
+      { id: 'CS325-2', name: '2 Android Overview_v2.pptx', size: '672KB', type: 'pptx', url: '/modules/CS325/2 Android Overview_v2.pptx' },
     ],
   },
   {
@@ -135,10 +125,8 @@ const sampleModules: Module[] = [
     subject: 'Modeling & Simulation',
     description: 'System modeling, discrete and continuous simulation, statistical analysis.',
     files: [
-      { id: 'CS326-1', name: 'Modeling and Simulation Syllabus.pdf', size: '1.0 MB', type: 'pdf', url: '/modules/CS326/syllabus.pdf' },
-      { id: 'CS326-2', name: 'Introduction to Simulation Models.pdf', size: '2.5 MB', type: 'pdf', url: '/modules/CS326/simulation-models.pdf' },
-      { id: 'CS326-3', name: 'Statistical Analysis for Simulation.pptx', size: '2.2 MB', type: 'pptx', url: '/modules/CS326/statistics.pptx' },
-      { id: 'CS326-4', name: 'Simulation Lab Exercises.zip', size: '4.5 MB', type: 'zip', url: '/modules/CS326/lab-exercises.zip' },
+      { id: 'CS326-1', name: 'Introduction to Modeling and Simulation.pdf', size: '11,075KB', type: 'pdf', url: '/modules/CS326/Introduction to Modeling and Simulation.pdf' },
+
     ],
   },
   {
@@ -146,11 +134,8 @@ const sampleModules: Module[] = [
     subject: 'Data Science',
     description: 'Data preprocessing, classification, clustering, association rules, pattern discovery.',
     files: [
-      { id: 'CS327-1', name: 'Data Mining Syllabus.pdf', size: '1.2 MB', type: 'pdf', url: '/modules/CS327/syllabus.pdf' },
-      { id: 'CS327-2', name: 'Data Preprocessing Techniques.pdf', size: '2.8 MB', type: 'pdf', url: '/modules/CS327/preprocessing.pdf' },
-      { id: 'CS327-3', name: 'Classification Algorithms.pptx', size: '3.2 MB', type: 'pptx', url: '/modules/CS327/classification.pptx' },
-      { id: 'CS327-4', name: 'Clustering Methods Reference.pdf', size: '2.5 MB', type: 'pdf', url: '/modules/CS327/clustering.pdf' },
-      { id: 'CS327-5', name: 'Data Mining Case Studies.zip', size: '7.5 MB', type: 'zip', url: '/modules/CS327/case-studies.zip' },
+      { id: 'CS327-1', name: 'Module 1_Intro to DM.pdf', size: '2,087KB', type: 'pdf', url: '/modules/CS327/Module 1_Intro to DM.pdf' },
+      { id: 'CS327-2', name: 'DM02_Data Mining Process.pdf', size: '1,022KB', type: 'pdf', url: '/modules/CS327/DM02_Data Mining Process.pdf' },
     ],
   },
   {
@@ -158,12 +143,9 @@ const sampleModules: Module[] = [
     subject: 'Artificial Intelligence',
     description: 'Supervised and unsupervised learning, neural networks, deep learning, model evaluation.',
     files: [
-      { id: 'CS328-1', name: 'Machine Learning Syllabus.pdf', size: '1.3 MB', type: 'pdf', url: '/modules/CS328/syllabus.pdf' },
-      { id: 'CS328-2', name: 'Supervised Learning Algorithms.pdf', size: '3.5 MB', type: 'pdf', url: '/modules/CS328/supervised.pdf' },
-      { id: 'CS328-3', name: 'Neural Networks and Deep Learning.pptx', size: '4.2 MB', type: 'pptx', url: '/modules/CS328/neural-networks.pptx' },
-      { id: 'CS328-4', name: 'Model Evaluation Techniques.pdf', size: '2.2 MB', type: 'pdf', url: '/modules/CS328/evaluation.pdf' },
-      { id: 'CS328-5', name: 'ML Practice Datasets.zip', size: '12.5 MB', type: 'zip', url: '/modules/CS328/datasets.zip' },
-      { id: 'CS328-6', name: 'Python ML Code Examples.zip', size: '3.8 MB', type: 'zip', url: '/modules/CS328/code-examples.zip' },
+      { id: 'CS328-1', name: '03-Application-of-Machine-Learning.pptx', size: '551KB', type: 'pptx', url: '/modules/CS328/03-Application-of-Machine-Learning.pptx' },
+      { id: 'CS328-2', name: 'CS-328-Machine-Learning.pdf', size: '267KB', type: 'pdf', url: '/modules/CS328/CS-328-Machine-Learning.pdf' },
+
     ],
   },
 ];
