@@ -84,20 +84,22 @@ interface FileAnalysisResult {
   slideCount?: number;
 }
 
-// Safe environment variable access - FIXED
-let GROQ_API_KEY = '';
-try {
-  // @ts-ignore - Vite injects this at build time
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROQ_API_KEY) {
-    // @ts-ignore
-    GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+/* ─── Config - Using window env or fallback ───────────────────────────────── */
+// This approach works for both dev and production builds
+const getApiKey = () => {
+  // Try multiple ways to get the API key
+  if (typeof window !== 'undefined' && (window as any).env?.VITE_GROQ_API_KEY) {
+    return (window as any).env.VITE_GROQ_API_KEY;
   }
-} catch (e) {
-  console.warn('Could not access import.meta.env, using fallback');
-  GROQ_API_KEY = process?.env?.VITE_GROQ_API_KEY || '';
-}
+  if (typeof process !== 'undefined' && process.env && process.env.VITE_GROQ_API_KEY) {
+    return process.env.VITE_GROQ_API_KEY;
+  }
+  // Default fallback - you can set a dummy value for build
+  return '';
+};
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_KEY = getApiKey();
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== '' && GROQ_API_KEY !== 'undefined';
 
 /* ─── Course keyword map ─────────────────────────────────────────────────── */
@@ -492,7 +494,7 @@ Provide a clean, helpful response.`;
   }
 }
 
-/* ─── Components ─────────────────────────────────────────────────────────── */
+/* ─── Components (same as before, but shortened for brevity) ─────────────── */
 const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
@@ -530,14 +532,10 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
 
   const getFileIcon = () => {
     switch (analysis.fileType) {
-      case 'pdf':
-        return <FileText className="w-4 h-4 text-red-600" />;
-      case 'txt':
-        return <File className="w-4 h-4 text-blue-600" />;
-      case 'pptx':
-        return <File className="w-4 h-4 text-orange-600" />;
-      default:
-        return <FileText className="w-4 h-4 text-gray-600" />;
+      case 'pdf': return <FileText className="w-4 h-4 text-red-600" />;
+      case 'txt': return <File className="w-4 h-4 text-blue-600" />;
+      case 'pptx': return <File className="w-4 h-4 text-orange-600" />;
+      default: return <FileText className="w-4 h-4 text-gray-600" />;
     }
   };
 
@@ -547,20 +545,14 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
         {getFileIcon()}
         <span className="text-xs font-semibold text-blue-900">File Analysis: {analysis.fileName}</span>
         <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-700">{analysis.fileType.toUpperCase()}</span>
-        {analysis.pageCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{analysis.pageCount} pages</span>
-        )}
-        {analysis.slideCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">~{analysis.slideCount} slides</span>
-        )}
+        {analysis.pageCount && <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{analysis.pageCount} pages</span>}
+        {analysis.slideCount && <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">~{analysis.slideCount} slides</span>}
       </div>
-
       <div className="space-y-2">
         <div>
           <span className="text-xs font-medium text-blue-800">Summary:</span>
           <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">{analysis.summary}</p>
         </div>
-
         {analysis.keyPoints.length > 0 && (
           <div>
             <span className="text-xs font-medium text-blue-800">Key Points:</span>
@@ -573,10 +565,7 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
               ))}
             </ul>
             {analysis.keyPoints.length > 3 && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="text-[10px] text-blue-500 hover:text-blue-700 mt-1 font-medium"
-              >
+              <button onClick={() => setExpanded(!expanded)} className="text-[10px] text-blue-500 hover:text-blue-700 mt-1 font-medium">
                 {expanded ? 'Show less' : `Show ${analysis.keyPoints.length - 3} more points`}
               </button>
             )}
@@ -588,12 +577,7 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
 };
 
 const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index }) => (
-  <a
-    href={source.url}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-green-50 border-green-200 text-green-700 text-xs font-medium hover:shadow-md transition-all group"
-  >
+  <a href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-green-50 border-green-200 text-green-700 text-xs font-medium hover:shadow-md transition-all group">
     <CheckCircle className="w-3 h-3 text-green-600" />
     <span className="font-mono text-green-600 font-bold">[{index}]</span>
     <span className="truncate max-w-[200px]">{source.name}</span>
@@ -608,12 +592,7 @@ const TypingDots: React.FC<{ label?: string }> = ({ label = '' }) => (
   <div className="flex items-center gap-2">
     <div className="flex gap-1">
       {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="w-1.5 h-1.5 rounded-full bg-primary/60"
-          animate={{ y: [0, -4, 0] }}
-          transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }}
-        />
+        <motion.span key={i} className="w-1.5 h-1.5 rounded-full bg-primary/60" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }} />
       ))}
     </div>
     {label && <span className="text-xs text-gray-400">{label}</span>}
@@ -626,49 +605,27 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
   const hasFileAnalysis = !isUser && msg.fileAnalysis;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-    >
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-          isUser ? 'bg-primary/15' : 'bg-primary/10'
-        }`}
-      >
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-primary/15' : 'bg-primary/10'}`}>
         {isUser ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
       </div>
-
       <div className={`flex flex-col gap-2 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
-        <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-            isUser
-              ? 'bg-primary text-white rounded-br-sm'
-              : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
-          }`}
-        >
+        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${isUser ? 'bg-primary text-white rounded-br-sm' : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'}`}>
           {isUser ? msg.text : <RenderTextWithLinks text={msg.text} />}
         </div>
-
         {hasFileAnalysis && msg.fileAnalysis && <FileAnalysisDisplay analysis={msg.fileAnalysis} />}
-
         {hasSources && (
           <div className="mt-2 pt-2 border-t border-gray-200 w-full">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-3.5 h-3.5 text-green-600" />
               <span className="text-xs font-semibold text-gray-700">REFERENCES</span>
-              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
-                {msg.sources!.length} {msg.sources!.length === 1 ? 'source' : 'sources'}
-              </span>
+              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{msg.sources!.length} {msg.sources!.length === 1 ? 'source' : 'sources'}</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {msg.sources!.map((src, idx) => (
-                <SourceCard key={idx} source={src} index={idx + 1} />
-              ))}
+              {msg.sources!.map((src, idx) => <SourceCard key={idx} source={src} index={idx + 1} />)}
             </div>
           </div>
         )}
-
         <span className="text-[10px] text-gray-400 px-1">{msg.time}</span>
       </div>
     </motion.div>
@@ -681,12 +638,7 @@ const SessionItem: React.FC<{
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
 }> = ({ session, isActive, onClick, onDelete }) => (
-  <div
-    onClick={onClick}
-    className={`group flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all ${
-      isActive ? 'bg-primary/10 border border-primary/20' : 'hover:bg-gray-50'
-    }`}
-  >
+  <div onClick={onClick} className={`group flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all ${isActive ? 'bg-primary/10 border border-primary/20' : 'hover:bg-gray-50'}`}>
     <MessageSquare className={`w-4 h-4 mt-0.5 ${isActive ? 'text-primary' : 'text-gray-400'}`} />
     <div className="flex-1 min-w-0">
       <p className="text-sm font-medium truncate">{session.title}</p>
@@ -696,10 +648,7 @@ const SessionItem: React.FC<{
         <span className="text-xs text-gray-400">{session.messages.length} msgs</span>
       </div>
     </div>
-    <button
-      onClick={onDelete}
-      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
-    >
+    <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500">
       <Trash2 className="w-3.5 h-3.5" />
     </button>
   </div>
@@ -726,9 +675,7 @@ export function AIChatSection() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    loadAllData();
-  }, []);
+  useEffect(() => { loadAllData(); }, []);
 
   useEffect(() => {
     const on = () => setIsOnline(true);
@@ -747,9 +694,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_fixed');
+      const savedSessions = localStorage.getItem('sphere_sessions_working');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_fixed');
+      const savedCurrent = localStorage.getItem('sphere_current_working');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -781,10 +728,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_fixed', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_working', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_fixed', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_working', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -795,10 +742,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_fixed', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_working', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_fixed', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_working', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -893,9 +840,7 @@ export function AIChatSection() {
       const offlineMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: !isOnline
-          ? "I'm offline. Please connect to the internet."
-          : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
+        text: !isOnline ? "I'm offline. Please connect to the internet." : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, offlineMsg];
@@ -1044,43 +989,26 @@ export function AIChatSection() {
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Bot className="w-5 h-5 text-primary" />
                 </div>
-                <span
-                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    statusOnline ? 'bg-green-400' : 'bg-gray-300'
-                  }`}
-                />
+                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${statusOnline ? 'bg-green-400' : 'bg-gray-300'}`} />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold">Sphere</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-                    File Analysis
-                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">File Analysis</span>
                 </div>
                 <p className="text-xs text-gray-400">Clean answers · Citations only when asked</p>
               </div>
             </div>
             <div className="flex gap-1">
-              <button onClick={() => setShowHistory((v) => !v)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                <Menu className="w-4 h-4" />
-              </button>
-              <button onClick={exportChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                <Download className="w-4 h-4" />
-              </button>
-              <button onClick={clearChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                <Sparkles className="w-4 h-4" />
-              </button>
+              <button onClick={() => setShowHistory((v) => !v)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors"><Menu className="w-4 h-4" /></button>
+              <button onClick={exportChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors"><Download className="w-4 h-4" /></button>
+              <button onClick={clearChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors"><Sparkles className="w-4 h-4" /></button>
             </div>
           </div>
 
           <AnimatePresence>
             {error && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden flex-shrink-0"
-              >
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden flex-shrink-0">
                 <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-100">
                   <AlertCircle className="w-3.5 h-3.5 text-red-500" />
                   <p className="text-xs text-red-600">{error}</p>
@@ -1097,18 +1025,8 @@ export function AIChatSection() {
                 </div>
                 <p className="text-gray-500 text-sm max-w-md">Upload a PDF, TXT, or PPTX file for analysis, or ask a CS question.</p>
                 <div className="flex gap-2 mt-4 flex-wrap justify-center">
-                  <button
-                    onClick={() => setInputValue('What is machine learning?')}
-                    className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
-                  >
-                    Ask about ML
-                  </button>
-                  <button
-                    onClick={() => setShowFileUpload(true)}
-                    className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs hover:bg-primary/20 transition-colors"
-                  >
-                    Upload a file
-                  </button>
+                  <button onClick={() => setInputValue('What is machine learning?')} className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors">Ask about ML</button>
+                  <button onClick={() => setShowFileUpload(true)} className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs hover:bg-primary/20 transition-colors">Upload a file</button>
                 </div>
               </div>
             ) : (
@@ -1117,29 +1035,18 @@ export function AIChatSection() {
 
             {isSearching && !isTyping && !isProcessingFile && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Search className="w-4 h-4 text-primary animate-pulse" />
-                </div>
-                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border">
-                  <TypingDots label="Thinking..." />
-                </div>
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><Search className="w-4 h-4 text-primary animate-pulse" /></div>
+                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border"><TypingDots label="Thinking..." /></div>
               </div>
             )}
 
             {isProcessingFile && analyzingFile && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Database className="w-4 h-4 text-blue-600 animate-pulse" />
-                </div>
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center"><Database className="w-4 h-4 text-blue-600 animate-pulse" /></div>
                 <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border min-w-[250px]">
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
-                      <span className="text-xs text-gray-600">Analyzing {analyzingFile}...</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-                    </div>
+                    <div className="flex items-center gap-2"><Loader2 className="w-3 h-3 text-blue-600 animate-spin" /><span className="text-xs text-gray-600">Analyzing {analyzingFile}...</span></div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden"><div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} /></div>
                   </div>
                 </div>
               </div>
@@ -1147,12 +1054,8 @@ export function AIChatSection() {
 
             {isTyping && !isProcessingFile && !isSearching && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-primary" />
-                </div>
-                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border">
-                  <TypingDots label="Responding..." />
-                </div>
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><Bot className="w-4 h-4 text-primary" /></div>
+                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border"><TypingDots label="Responding..." /></div>
               </div>
             )}
 
@@ -1162,12 +1065,7 @@ export function AIChatSection() {
           <div className="p-4 border-t bg-white flex-shrink-0">
             <AnimatePresence>
               {pendingFiles.length > 0 && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden mb-3"
-                >
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-3">
                   <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-100">
                     {pendingFiles.map((file, i) => (
                       <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-lg text-xs">
@@ -1176,9 +1074,7 @@ export function AIChatSection() {
                         {file.type === 'pptx' && <File className="w-3 h-3" />}
                         <span className="max-w-[150px] truncate">{file.name}</span>
                         <span className="text-gray-400 text-[10px]">({formatFileSize(file.size)})</span>
-                        <button onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} className="ml-1">
-                          <X className="w-3 h-3" />
-                        </button>
+                        <button onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} className="ml-1"><X className="w-3 h-3" /></button>
                       </div>
                     ))}
                   </div>
@@ -1187,53 +1083,20 @@ export function AIChatSection() {
             </AnimatePresence>
 
             <form onSubmit={handleSendMessage} className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowFileUpload(!showFileUpload)}
-                className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
-                title="Upload file"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <input
-                ref={inputRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Ask a question or upload a file..."
-                className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                disabled={isTyping || isSearching || isProcessingFile}
-              />
-              <button
-                type="submit"
-                disabled={(!inputValue.trim() && pendingFiles.length === 0) || isTyping || isSearching || isProcessingFile}
-                className="p-2.5 bg-primary text-white rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
-              >
+              <button type="button" onClick={() => setShowFileUpload(!showFileUpload)} className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors" title="Upload file"><Paperclip className="w-4 h-4" /></button>
+              <input ref={inputRef} value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask a question or upload a file..." className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" disabled={isTyping || isSearching || isProcessingFile} />
+              <button type="submit" disabled={(!inputValue.trim() && pendingFiles.length === 0) || isTyping || isSearching || isProcessingFile} className="p-2.5 bg-primary text-white rounded-xl hover:bg-accent transition-colors disabled:opacity-50">
                 {isTyping || isProcessingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </form>
 
             <AnimatePresence>
               {showFileUpload && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden mt-3"
-                >
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-3">
                   <div className="p-4 bg-gray-50 rounded-xl border">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FileUp className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Upload File for Analysis</span>
-                    </div>
+                    <div className="flex items-center gap-2 mb-3"><FileUp className="w-4 h-4 text-primary" /><span className="text-sm font-medium">Upload File for Analysis</span></div>
                     <label className="block cursor-pointer">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,.txt,.pptx,.ppt"
-                        onChange={handleFileSelect}
-                        multiple
-                        className="hidden"
-                      />
+                      <input ref={fileInputRef} type="file" accept=".pdf,.txt,.pptx,.ppt" onChange={handleFileSelect} multiple className="hidden" />
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors">
                         <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                         <p className="text-sm text-gray-600">Click to select files</p>
@@ -1247,9 +1110,7 @@ export function AIChatSection() {
 
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
-              {statusOnline
-                ? 'Clean answers · Citations only when explicitly asked'
-                : 'Configure API key to start'}
+              {statusOnline ? 'Clean answers · Citations only when explicitly asked' : 'Configure API key to start'}
             </p>
           </div>
         </div>
