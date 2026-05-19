@@ -106,6 +106,12 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
 
+// Academic search endpoints (using multiple reliable sources)
+const ACADEMIC_SEARCH_ENDPOINTS = [
+  'https://api.core.ac.uk/v3/search/works',
+  'https://api.semanticscholar.org/graph/v1/paper/search',
+];
+
 /* ─── Course keyword map ─────────────────────────────────────────────────── */
 const COURSE_KEYWORDS: Record<string, string[]> = {
   CS321: ['programming language', 'paradigm', 'functional', 'prolog', 'haskell', 'lambda', 'type system', 'syntax', 'semantics', 'compiler', 'interpreter'],
@@ -120,23 +126,41 @@ const COURSE_KEYWORDS: Record<string, string[]> = {
 
 /* ─── Trusted Academic Sources Database ─────────────────────────────────── */
 const TRUSTED_SOURCES: Source[] = [
+  // MIT OpenCourseWare
   { name: 'MIT OpenCourseWare - Computer Science', url: 'https://ocw.mit.edu/search/?q=', courseCode: 'CS', type: 'course', verified: true },
+  // Stanford CS
   { name: 'Stanford CS Courses', url: 'https://cs.stanford.edu/', courseCode: 'CS', type: 'course', verified: true },
+  // arXiv
   { name: 'arXiv Computer Science', url: 'https://arxiv.org/list/cs/recent', courseCode: 'CS', type: 'papers', verified: true },
+  // Google Scholar
   { name: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=', courseCode: 'CS', type: 'search', verified: true },
+  // ACM Digital Library
   { name: 'ACM Digital Library', url: 'https://dl.acm.org/', courseCode: 'CS', type: 'library', verified: true },
+  // IEEE Xplore
   { name: 'IEEE Xplore', url: 'https://ieeexplore.ieee.org/', courseCode: 'CS', type: 'library', verified: true },
+  // SpringerLink
   { name: 'SpringerLink', url: 'https://link.springer.com/', courseCode: 'CS', type: 'publisher', verified: true },
+  // ScienceDirect
   { name: 'ScienceDirect', url: 'https://www.sciencedirect.com/', courseCode: 'CS', type: 'publisher', verified: true },
+  // Coursera
   { name: 'Coursera', url: 'https://www.coursera.org/courses?query=', courseCode: 'CS', type: 'course', verified: true },
+  // edX
   { name: 'edX', url: 'https://www.edx.org/learn/computer-science', courseCode: 'CS', type: 'course', verified: true },
+  // Stack Overflow (for practical examples)
   { name: 'Stack Overflow', url: 'https://stackoverflow.com/questions/tagged/', courseCode: 'CS', type: 'community', verified: true },
+  // GitHub Documentation
   { name: 'GitHub Docs', url: 'https://docs.github.com/en', courseCode: 'CS', type: 'documentation', verified: true },
+  // W3Schools
   { name: 'W3Schools', url: 'https://www.w3schools.com/', courseCode: 'CS', type: 'tutorial', verified: true },
+  // GeeksforGeeks
   { name: 'GeeksforGeeks', url: 'https://www.geeksforgeeks.org/', courseCode: 'CS', type: 'tutorial', verified: true },
+  // Towards Data Science
   { name: 'Towards Data Science', url: 'https://towardsdatascience.com/', courseCode: 'CS', type: 'article', verified: true },
+  // FreeCodeCamp
   { name: 'freeCodeCamp', url: 'https://www.freecodecamp.org/news/tag/', courseCode: 'CS', type: 'tutorial', verified: true },
+  // MDN Web Docs
   { name: 'MDN Web Docs', url: 'https://developer.mozilla.org/en-US/', courseCode: 'CS', type: 'documentation', verified: true },
+  // Dev.to
   { name: 'DEV Community', url: 'https://dev.to/t/', courseCode: 'CS', type: 'community', verified: true },
 ];
 
@@ -144,10 +168,14 @@ const TRUSTED_SOURCES: Source[] = [
 async function searchWebForSources(query: string): Promise<Source[]> {
   const searchResults: Source[] = [];
   const lowerQuery = query.toLowerCase();
+  
+  // Extract key terms from the query
   const keywords = lowerQuery.split(' ').filter(w => w.length > 3);
   const mainTopic = keywords[0] || lowerQuery;
   
+  // 1. Search from trusted sources database
   for (const source of TRUSTED_SOURCES) {
+    // Calculate relevance based on keyword matching
     let relevance = 0;
     const sourceName = source.name.toLowerCase();
     const sourceType = source.type.toLowerCase();
@@ -157,6 +185,7 @@ async function searchWebForSources(query: string): Promise<Source[]> {
       if (sourceType.includes(keyword)) relevance += 1;
     }
     
+    // Add course-specific relevance
     for (const [code, courseKeywords] of Object.entries(COURSE_KEYWORDS)) {
       if (courseKeywords.some(kw => lowerQuery.includes(kw))) {
         if (source.courseCode === code) relevance += 3;
@@ -164,6 +193,7 @@ async function searchWebForSources(query: string): Promise<Source[]> {
     }
     
     if (relevance > 0 || keywords.length === 0) {
+      // Create a search-specific URL
       let searchUrl = source.url;
       if (source.url.includes('?q=')) {
         searchUrl = source.url + encodeURIComponent(mainTopic);
@@ -182,6 +212,7 @@ async function searchWebForSources(query: string): Promise<Source[]> {
     }
   }
   
+  // 2. Create topic-specific academic sources
   const topicSpecificSources: { [key: string]: Source[] } = {
     'machine learning': [
       { name: 'Google Machine Learning Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'course', verified: true },
@@ -202,6 +233,7 @@ async function searchWebForSources(query: string): Promise<Source[]> {
     ],
   };
   
+  // Add topic-specific sources
   for (const [topic, sources] of Object.entries(topicSpecificSources)) {
     if (lowerQuery.includes(topic)) {
       for (const source of sources) {
@@ -212,15 +244,20 @@ async function searchWebForSources(query: string): Promise<Source[]> {
     }
   }
   
+  // 3. Sort by relevance and remove duplicates
   const unique = Array.from(new Map(searchResults.map(s => [s.name, s])).values());
   const sorted = unique.sort((a, b) => (b.relevance || 0) - (a.relevance || 0));
+  
+  // Return top 6 most relevant sources
   return sorted.slice(0, 6);
 }
 
+// Function to perform academic paper search (using CORE API if available)
 async function searchAcademicPapers(query: string): Promise<Source[]> {
   const paperSources: Source[] = [];
   const searchTerm = encodeURIComponent(query);
   
+  // Add links to academic search engines
   paperSources.push({
     name: `Search "${query}" on Google Scholar`,
     url: `https://scholar.google.com/scholar?q=${searchTerm}`,
@@ -278,10 +315,12 @@ function detectRelevantCourses(message: string): string[] {
   return detected.length > 0 ? detected : Object.keys(COURSE_KEYWORDS);
 }
 
+// Enhanced source gathering with web search
 async function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string[]): Promise<Source[]> {
   const lowerMessage = userMessage.toLowerCase();
   let sources: Source[] = [];
   
+  // 1. First, perform web search for real-time references
   try {
     const webSources = await searchWebForSources(userMessage);
     sources.push(...webSources);
@@ -289,6 +328,7 @@ async function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: 
     console.error('Web search error:', error);
   }
   
+  // 2. Add academic paper sources for research questions
   const isResearchQuestion = lowerMessage.includes('paper') || 
                              lowerMessage.includes('research') || 
                              lowerMessage.includes('study') ||
@@ -299,6 +339,7 @@ async function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: 
     sources.push(...paperSources);
   }
   
+  // 3. Add course-specific verified sources
   for (const courseCode of detectedCourses) {
     const courseTopic = Object.entries(COURSE_KEYWORDS).find(([code]) => code === courseCode)?.[1][0];
     if (courseTopic) {
@@ -321,6 +362,7 @@ async function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: 
     }
   }
   
+  // 4. Add general academic resources
   const generalResources: Source[] = [
     { name: 'MIT OpenCourseWare', url: 'https://ocw.mit.edu/search/?q=' + encodeURIComponent(userMessage), courseCode: 'CS', type: 'course', verified: true },
     { name: 'Coursera', url: 'https://www.coursera.org/courses?query=' + encodeURIComponent(userMessage), courseCode: 'CS', type: 'course', verified: true },
@@ -332,10 +374,12 @@ async function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: 
     sources.push(...generalResources);
   }
   
+  // Remove duplicates and limit to top sources
   const unique = Array.from(new Map(sources.map((s) => [s.url, s])).values());
   return unique.slice(0, 6);
 }
 
+// Clean and format AI response text
 function formatAIResponse(text: string): string {
   let formatted = text.replace(/\.([A-Z])/g, '. $1');
   formatted = formatted.replace(/(\d+)\.([A-Z])/g, '$1. $2');
@@ -348,10 +392,8 @@ function formatAIResponse(text: string): string {
   formatted = formatted.replace(/\n•/g, '\n  •');
   formatted = formatted.trim();
   
-  // Remove all inline citations (anything in [Source Name](url) format)
-  formatted = formatted.replace(/\[([^\]]+)\]\(https?:\/\/[^\)]+\)/g, '');
-  // Clean up extra spaces left after removing citations
-  formatted = formatted.replace(/\s+/g, ' ').replace(/\. \./g, '.');
+  // Format citations properly - ensure they appear as [Source Name](url)
+  formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1]($2)');
   
   return formatted;
 }
@@ -535,7 +577,9 @@ async function analyzeFile(file: File): Promise<FileAnalysisResult> {
 async function buildRAGContext(userMessage: string): Promise<{ contextBlock: string; sources: Source[] }> {
   const relevantCourses = detectRelevantCourses(userMessage);
   const sources = await getVerifiedSourcesForTopic(userMessage, relevantCourses);
+  
   const contextBlock = sources.map((s, i) => `${i + 1}. **${s.name}** (${s.type}) - ${s.description || 'Verified academic source'}\n   URL: ${s.url}`).join('\n\n');
+  
   return { contextBlock, sources };
 }
 
@@ -547,7 +591,7 @@ async function callGroqAPI(
   ragSources: Source[],
   fileAnalysis?: FileAnalysisResult
 ): Promise<{ text: string; sources: Source[] }> {
-  const sourcesList = ragSources.map((s, i) => `${i + 1}. ${s.name} - ${s.type.charAt(0).toUpperCase() + s.type.slice(1)} resource\n   URL: ${s.url}`).join('\n\n');
+  const sourcesList = ragSources.map((s, i) => `${i + 1}. [${s.name}](${s.url}) - ${s.type.charAt(0).toUpperCase() + s.type.slice(1)} resource`).join('\n');
 
   let fileContext = '';
   let hasFile = false;
@@ -594,6 +638,18 @@ ${fileContext}
 5. Be specific and reference actual content from the file
 6. Use clean, professional formatting with proper spacing
 
+**FORMAT EXAMPLE:**
+1. Introduction
+   The presentation covers three main topics in computer vision.
+
+2. Key Topics
+   • Image classification using CNNs (94% accuracy)
+   • Natural language processing for sentiment analysis
+   • Predictive modeling for healthcare applications
+
+3. Conclusion
+   The document emphasizes practical applications and real-world implementations.
+
 **DO NOT USE:** "As seen in", "According to", "The file shows" - just state facts directly.`;
     } else {
       systemPrompt = `You are Sphere, an academic assistant.
@@ -619,34 +675,33 @@ ${fileContext}
 **RELEVANT SOURCES FOUND ONLINE:**
 ${sourcesList || 'No specific sources found. Use your knowledge to provide accurate information.'}
 
-**CRITICAL RULES:**
-1. DO NOT include any inline citations in your response text
-2. DO NOT use the [Source Name](URL) format anywhere in your answer
-3. Write naturally without any reference markers or citations
-4. Format your response with:
+**REFERENCING RULES:**
+1. For each factual claim, include 1-2 inline citations from the sources above
+2. Use format: [Source Name](URL)
+3. Format your response with:
    - Numbered sections for main topics
    - Bullet points for lists
    - Proper line breaks between sections
    - Clean, professional spacing
-5. After your answer, include a "📚 References" section listing the sources
-6. In the references section, use the format: [index]. Source Name - Type - URL
+4. After your answer, include a "📚 References" section listing all cited sources
+5. Prioritize .edu, .org, and academic sources over general websites
+6. If a source is highly relevant, mark it with ⭐
 
-**REFERENCE SECTION FORMAT (only at the end):**
+**REFERENCE SECTION FORMAT:**
 📚 References
-1. Source Name - Type - URL
-2. Another Source - Type - URL
+1. [Source Name](URL) - Type (⭐ if high relevance)
 
 **FORMAT EXAMPLE:**
 1. Introduction
-   Context about the topic explained naturally without citations.
+   Context about the topic [Stanford CS229](https://cs229.stanford.edu).
 
 2. Key Concepts
-   • First concept with clear explanation
+   • First concept with explanation [MIT OCW](https://ocw.mit.edu)
    • Second concept with supporting evidence
 
 📚 References
-1. Stanford CS229 - Course - https://cs229.stanford.edu
-2. MIT OpenCourseWare - Educational Resource - https://ocw.mit.edu`;
+1. [Stanford CS229](https://cs229.stanford.edu) - Course (⭐)
+2. [MIT OpenCourseWare](https://ocw.mit.edu) - Educational Resource`;
   } else {
     systemPrompt = `You are Sphere, an academic CS assistant.
 
@@ -688,6 +743,7 @@ ${sourcesList || 'No specific sources found. Use your knowledge to provide accur
     const data = await response.json();
     let rawText = data.choices[0].message.content;
     
+    // Clean up repetitive phrases
     const cleanupPatterns = [
       /As seen in the uploaded file[,:]?\s*/gi,
       /As seen in the file[,:]?\s*/gi,
@@ -703,28 +759,30 @@ ${sourcesList || 'No specific sources found. Use your knowledge to provide accur
       rawText = rawText.replace(pattern, '');
     }
     
+    // Apply clean formatting
     rawText = formatAIResponse(rawText);
     rawText = rawText.replace(/\*\*/g, '');
     rawText = rawText.replace(/\n{3,}/g, '\n\n');
     rawText = rawText.trim();
 
-    // Extract sources from the references section
+    // Extract cited sources
     let finalSources: Source[] = [];
     
     if (needsSources && !hasFile) {
-      const refSection = rawText.match(/📚 References[\s\S]*$/i);
-      if (refSection) {
-        const sourceLines = refSection[0].split('\n');
-        for (const line of sourceLines) {
-          const match = line.match(/\d+\.\s+(.+?)\s+-\s+(.+?)\s+-\s+(https?:\/\/[^\s]+)/);
-          if (match && match[3]) {
-            const matchingSource = ragSources.find((s) => s.url === match[3] || s.name.includes(match[1]));
-            if (matchingSource) {
-              finalSources.push(matchingSource);
-            }
+      const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+      const citedSources: Source[] = [];
+      let match;
+
+      while ((match = linkRegex.exec(rawText)) !== null) {
+        const matchingSource = ragSources.find((s) => s.url === match[2] || s.name === match[1]);
+        if (matchingSource && matchingSource.verified) {
+          if (!citedSources.find((s) => s.url === matchingSource.url)) {
+            citedSources.push(matchingSource);
           }
         }
       }
+
+      finalSources = citedSources.slice(0, 5);
     }
 
     return { text: rawText, sources: finalSources };
@@ -740,7 +798,7 @@ const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
     const linkParts: React.ReactNode[] = [];
     let lastIdx = 0;
     let linkMatch;
-    const linkRegexLocal = /(https?:\/\/[^\s]+)/g;
+    const linkRegexLocal = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
     
     while ((linkMatch = linkRegexLocal.exec(content)) !== null) {
       if (linkMatch.index > lastIdx) {
@@ -749,12 +807,12 @@ const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
       linkParts.push(
         <a
           key={linkMatch.index}
-          href={linkMatch[1]}
+          href={linkMatch[2]}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 text-primary underline underline-offset-2 hover:text-accent font-medium"
         >
-          {linkMatch[1].substring(0, 40)}...
+          {linkMatch[1]}
           <ExternalLink className="w-2.5 h-2.5" />
         </a>
       );
@@ -768,12 +826,14 @@ const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
     return linkParts;
   };
 
+  // Parse markdown-style headers and lists
   const lines = text.split('\n');
   const formattedLines: React.ReactNode[] = [];
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     
+    // Check for reference section
     if (line.includes('📚 References') || line.includes('References')) {
       formattedLines.push(
         <div key={i} className="mt-4 pt-3 border-t border-gray-200">
@@ -786,6 +846,7 @@ const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
       continue;
     }
     
+    // Check for numbered list items
     if (line.match(/^\d+\./)) {
       formattedLines.push(
         <div key={i} className="mt-2 font-semibold text-gray-800">
@@ -795,6 +856,7 @@ const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
       continue;
     }
     
+    // Check for bullet points
     if (line.trim().startsWith('•')) {
       formattedLines.push(
         <div key={i} className="flex gap-2 ml-4 text-gray-700">
@@ -805,6 +867,7 @@ const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
       continue;
     }
     
+    // Regular paragraph
     if (line.trim()) {
       formattedLines.push(
         <p key={i} className="mb-2 text-gray-700">
@@ -1075,9 +1138,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v9');
+      const savedSessions = localStorage.getItem('sphere_sessions_v8');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v9');
+      const savedCurrent = localStorage.getItem('sphere_current_v8');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -1094,7 +1157,7 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your academic CS assistant with web search capabilities.\n\n**What I can do:**\n• Search the web for reliable academic sources\n• Analyze PDF, TXT, and PPTX files\n• Provide verified references from trusted sources (.edu, .org, academic databases)\n\n**Try asking me:**\n• 'What is machine learning?' - I'll search for sources\n• 'Explain neural networks'\n• Upload a file for analysis\n\nHow can I help you today?",
+      text: "Hello! I'm Sphere, your academic CS assistant with web search capabilities.\n\n**What I can do:**\n• Search the web for reliable academic sources\n• Analyze PDF, TXT, and PPTX files\n• Provide verified references from trusted sources (.edu, .org, academic databases)\n• Format responses with proper citations\n\n**Try asking me:**\n• 'What is machine learning?' - I'll search for sources\n• 'Explain neural networks with references'\n• Upload a file for analysis\n\nHow can I help you today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
@@ -1109,10 +1172,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v9', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v9', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -1123,10 +1186,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v9', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v9', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1433,13 +1496,13 @@ export function AIChatSection() {
                 <p className="text-gray-500 text-sm max-w-md">Ask any CS question - I'll search the web for reliable academic sources!</p>
                 <div className="flex gap-2 mt-4 flex-wrap justify-center">
                   <button
-                    onClick={() => setInputValue('What is machine learning?')}
+                    onClick={() => setInputValue('What is machine learning? Give me sources')}
                     className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
                   >
-                    What is ML?
+                    ML with sources
                   </button>
                   <button
-                    onClick={() => setInputValue('Explain neural networks')}
+                    onClick={() => setInputValue('Explain neural networks and provide references')}
                     className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
                   >
                     Neural networks
@@ -1492,7 +1555,7 @@ export function AIChatSection() {
                   <Bot className="w-4 h-4 text-primary" />
                 </div>
                 <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border">
-                  <TypingDots label="Generating response..." />
+                  <TypingDots label="Generating response with citations..." />
                 </div>
               </div>
             )}
@@ -1594,7 +1657,7 @@ export function AIChatSection() {
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
               {statusOnline
-                ? 'Sphere searches the web for verified academic sources - references appear at the bottom'
+                ? 'Sphere searches the web for verified academic sources from .edu, .org, and trusted domains'
                 : 'Configure API key for web search and file analysis'}
             </p>
           </div>
