@@ -6,15 +6,11 @@ import {
   Trash2, Download, Sparkles, Menu, Paperclip, FileText,
   X, Plus, ChevronLeft, Clock, MessageSquare, Zap,
   BookOpen, ExternalLink, Search, CheckCircle, File,
-  FileUp, Database, Mic, MicOff,
+  FileUp, Database,
 } from 'lucide-react';
 
 // ─── PDF.js worker ──────────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-// ─── PPTX parsing using mammoth.js (for text extraction) ───────────────────
-// Note: You'll need to install: npm install mammoth
-import * as mammoth from 'mammoth';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface Source {
@@ -37,6 +33,8 @@ interface Message {
     fileType: string;
     summary: string;
     keyPoints: string[];
+    pageCount?: number;
+    slideCount?: number;
   };
 }
 
@@ -53,7 +51,6 @@ interface PendingFile {
   name: string;
   size: number;
   type: string;
-  preview?: string;
 }
 
 interface BlobFile {
@@ -80,6 +77,102 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
 
+/* ─── Course keyword map for detection ───────────────────────────────────── */
+const COURSE_KEYWORDS: Record<string, string[]> = {
+  CS321: ['programming language', 'paradigm', 'functional', 'prolog', 'haskell', 'lambda', 'type system', 'syntax', 'semantics', 'compiler', 'interpreter', 'programming language theory'],
+  CS322: ['software engineering', 'sdlc', 'agile', 'scrum', 'design pattern', 'uml', 'requirements', 'testing', 'waterfall', 'project management'],
+  CS323: ['ethics', 'social issue', 'professional practice', 'intellectual property', 'privacy', 'copyright', 'cybercrime', 'legal', 'acm code', 'professional responsibility'],
+  CS324: ['graphics', 'visual computing', 'rendering', 'opengl', '3d', 'animation', 'rasterization', 'shading', 'texture', 'polygon', 'ray tracing'],
+  CS325: ['mobile', 'android', 'ios', 'flutter', 'react native', 'mobile development', 'mobile app', 'smartphone', 'tablet', 'ios development', 'android development'],
+  CS326: ['modeling', 'simulation', 'discrete event', 'monte carlo', 'queuing', 'stochastic', 'continuous simulation', 'system dynamics'],
+  CS327: ['data mining', 'clustering', 'classification', 'association rule', 'apriori', 'decision tree', 'naive bayes', 'k-means', 'pattern discovery', 'data mining'],
+  CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer', 'ml', 'machine learning'],
+};
+
+/* ─── Verified academic sources database ─────────────────────────────────── */
+const VERIFIED_ACADEMIC_SOURCES: Record<string, Source[]> = {
+  'data mining': [
+    { name: 'Data Mining: Concepts and Techniques (Han & Kamber)', url: 'https://www.sciencedirect.com/book/9780123814791/data-mining-concepts-and-techniques', courseCode: 'CS327', type: 'book', verified: true },
+    { name: 'Introduction to Data Mining (Tan, Steinbach, Kumar)', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook/index.php', courseCode: 'CS327', type: 'textbook', verified: true },
+    { name: 'UC Irvine Machine Learning Repository', url: 'https://archive.ics.uci.edu/ml/index.php', courseCode: 'CS327', type: 'dataset', verified: true },
+  ],
+  'machine learning': [
+    { name: 'Stanford CS229: Machine Learning', url: 'https://cs229.stanford.edu/', courseCode: 'CS328', type: 'course', verified: true },
+    { name: 'Deep Learning Book (Goodfellow et al.)', url: 'https://www.deeplearningbook.org/', courseCode: 'CS328', type: 'book', verified: true },
+    { name: 'Google Machine Learning Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'tutorial', verified: true },
+  ],
+  'programming': [
+    { name: 'Structure and Interpretation of Computer Programs', url: 'https://mitpress.mit.edu/sites/default/files/sicp/index.html', courseCode: 'CS321', type: 'book', verified: true },
+    { name: 'Programming Language Pragmatics', url: 'https://www.cs.rochester.edu/~scott/pragmatics/', courseCode: 'CS321', type: 'book', verified: true },
+  ],
+  'software engineering': [
+    { name: 'Software Engineering (Ian Sommerville)', url: 'https://www.software-engin.com/', courseCode: 'CS322', type: 'book', verified: true },
+    { name: 'Agile Alliance Resources', url: 'https://www.agilealliance.org/agile101/', courseCode: 'CS322', type: 'guide', verified: true },
+  ],
+  'general': [
+    { name: 'MIT OpenCourseWare Computer Science', url: 'https://ocw.mit.edu/search/?d=Electrical%20Engineering%20and%20Computer%20Science', courseCode: 'CS', type: 'course', verified: true },
+    { name: 'arXiv Computer Science', url: 'https://arxiv.org/archive/cs', courseCode: 'CS', type: 'papers', verified: true },
+    { name: 'Google Scholar', url: 'https://scholar.google.com/', courseCode: 'CS', type: 'search', verified: true },
+  ],
+};
+
+/* ─── Helper Functions ────────────────────────────────────────────────────── */
+
+// Format file size for display
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Detect relevant courses from message
+function detectRelevantCourses(message: string): string[] {
+  const lower = message.toLowerCase();
+  const detected: string[] = [];
+  for (const [code, keywords] of Object.entries(COURSE_KEYWORDS)) {
+    if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+      detected.push(code);
+    }
+  }
+  return detected.length > 0 ? detected : Object.keys(COURSE_KEYWORDS);
+}
+
+// Get verified sources for topic
+function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string[]): Source[] {
+  const lowerMessage = userMessage.toLowerCase();
+  const sources: Source[] = [];
+  
+  for (const [topic, topicSources] of Object.entries(VERIFIED_ACADEMIC_SOURCES)) {
+    if (lowerMessage.includes(topic)) {
+      sources.push(...topicSources);
+    }
+  }
+  
+  // Also check by course code
+  for (const course of detectedCourses) {
+    if (course === 'CS327' && !sources.some(s => s.courseCode === 'CS327')) {
+      sources.push(...VERIFIED_ACADEMIC_SOURCES['data mining']);
+    }
+    if (course === 'CS328' && !sources.some(s => s.courseCode === 'CS328')) {
+      sources.push(...VERIFIED_ACADEMIC_SOURCES['machine learning']);
+    }
+    if (course === 'CS321' && !sources.some(s => s.courseCode === 'CS321')) {
+      sources.push(...VERIFIED_ACADEMIC_SOURCES['programming']);
+    }
+    if (course === 'CS322' && !sources.some(s => s.courseCode === 'CS322')) {
+      sources.push(...VERIFIED_ACADEMIC_SOURCES['software engineering']);
+    }
+  }
+  
+  if (sources.length < 2) {
+    sources.push(...VERIFIED_ACADEMIC_SOURCES['general']);
+  }
+  
+  // Remove duplicates and limit to 5
+  const unique = Array.from(new Map(sources.map(s => [s.url, s])).values());
+  return unique.slice(0, 5);
+}
+
 /* ─── File Analysis Functions ─────────────────────────────────────────────── */
 
 // Extract text from PDF files
@@ -88,22 +181,21 @@ async function analyzePDF(file: File): Promise<FileAnalysisResult> {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const pageCount = pdf.numPages;
-    const maxPages = Math.min(pageCount, 10); // Limit to first 10 pages for performance
+    const maxPages = Math.min(pageCount, 10);
     const fullTexts: string[] = [];
     
-    // Extract text from each page
     for (let i = 1; i <= maxPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullTexts.push(pageText);
-      
-      // Progress update could be added here
+      if (pageText.trim()) {
+        fullTexts.push(pageText);
+      }
     }
     
     const fullText = fullTexts.join('\n\n').substring(0, 8000);
     
-    // Generate summary and key points using AI
+    // Generate summary and key points
     const analysis = await generateFileSummary(fullText, file.name, 'pdf');
     
     return {
@@ -141,20 +233,33 @@ async function analyzeTXT(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-// Extract text from PPTX files
+// Extract text from PPTX files (basic extraction without external deps)
 async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
   try {
-    const arrayBuffer = await file.arrayBuffer();
+    // For PPTX, we'll extract what we can from the filename and provide basic analysis
+    // In a production environment, you'd use a library like mammoth.js or officegen
+    const fileName = file.name;
+    const fileSize = file.size;
     
-    // Use mammoth to extract text from PPTX
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    const fullText = result.value.substring(0, 8000);
+    // Try to read as text (some PPTX files have readable structure)
+    let extractedText = '';
+    try {
+      const text = await file.text();
+      // Look for readable text in the XML structure
+      const textMatches = text.match(/>([^<]{20,})</g);
+      if (textMatches) {
+        extractedText = textMatches.map(m => m.slice(1, -1)).join(' ').substring(0, 4000);
+      }
+    } catch {
+      extractedText = '';
+    }
     
-    // Count slides by looking for slide separators (common in PPTX text extraction)
-    const slideMatches = fullText.match(/slide\s*\d+/gi);
-    const slideCount = slideMatches ? slideMatches.length : Math.ceil(fullText.length / 500);
+    const fullText = extractedText || `[PowerPoint file: ${fileName}] - Size: ${formatFileSize(fileSize)}. Content extraction requires specialized library.`;
     
     const analysis = await generateFileSummary(fullText, file.name, 'pptx');
+    
+    // Estimate slide count based on file size (rough heuristic)
+    const estimatedSlides = Math.max(1, Math.floor(fileSize / 50000));
     
     return {
       fileName: file.name,
@@ -162,7 +267,7 @@ async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
       fullText,
       summary: analysis.summary,
       keyPoints: analysis.keyPoints,
-      slideCount,
+      slideCount: estimatedSlides,
     };
   } catch (error) {
     console.error('PPTX analysis error:', error);
@@ -170,14 +275,17 @@ async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-// Generate summary and key points using Groq API
+// Generate summary and key points using Groq API or fallback
 async function generateFileSummary(content: string, fileName: string, fileType: string): Promise<{ summary: string; keyPoints: string[] }> {
-  if (!isAPIKeyConfigured) {
-    // Fallback basic extraction if no API key
+  if (!isAPIKeyConfigured || content.length < 100) {
+    // Fallback basic extraction
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    const summary = sentences.slice(0, 3).join('. ') + '.';
-    const keyPoints = sentences.slice(0, 5).map(s => s.trim().substring(0, 100));
-    return { summary, keyPoints };
+    const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 2 ? '.' : '');
+    const keyPoints = sentences.slice(0, 4).map(s => s.trim().substring(0, 100));
+    return { 
+      summary: summary || `This ${fileType.toUpperCase()} file contains information about ${fileName.replace(/\.[^/.]+$/, '')}.`, 
+      keyPoints: keyPoints.length ? keyPoints : ['Content analysis requires AI API configuration.'] 
+    };
   }
   
   try {
@@ -214,18 +322,29 @@ Format your response as valid JSON only. No other text.`,
     const aiResponse = data.choices[0].message.content;
     
     // Parse JSON response
-    const parsed = JSON.parse(aiResponse);
+    let parsed;
+    try {
+      parsed = JSON.parse(aiResponse);
+    } catch {
+      // Fallback if JSON parsing fails
+      const lines = aiResponse.split('\n').filter(l => l.trim());
+      return {
+        summary: lines[0] || 'Unable to generate summary.',
+        keyPoints: lines.slice(1, 5).map(l => l.replace(/^\d+\.\s*/, '').substring(0, 100)),
+      };
+    }
+    
     return {
       summary: parsed.summary || 'Unable to generate summary.',
-      keyPoints: parsed.keyPoints || ['No key points extracted.'],
+      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.slice(0, 5) : ['No key points extracted.'],
     };
   } catch (error) {
     console.error('Summary generation error:', error);
     // Fallback extraction
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    const summary = sentences.slice(0, 3).join('. ') + '.';
-    const keyPoints = sentences.slice(0, 5).map(s => s.trim().substring(0, 100));
-    return { summary, keyPoints };
+    const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 2 ? '.' : '');
+    const keyPoints = sentences.slice(0, 4).map(s => s.trim().substring(0, 100));
+    return { summary: summary || 'Content analysis temporarily unavailable.', keyPoints: keyPoints.length ? keyPoints : ['Please try again.'] };
   }
 }
 
@@ -246,74 +365,7 @@ async function analyzeFile(file: File): Promise<FileAnalysisResult> {
   }
 }
 
-/* ─── Format file size for display ───────────────────────────────────────── */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-/* ─── Course keyword map for detection ───────────────────────────────────── */
-const COURSE_KEYWORDS: Record<string, string[]> = {
-  CS321: ['programming language', 'paradigm', 'functional', 'prolog', 'haskell', 'lambda', 'type system', 'syntax', 'semantics', 'compiler', 'interpreter', 'programming language theory'],
-  CS322: ['software engineering', 'sdlc', 'agile', 'scrum', 'design pattern', 'uml', 'requirements', 'testing', 'waterfall', 'project management'],
-  CS323: ['ethics', 'social issue', 'professional practice', 'intellectual property', 'privacy', 'copyright', 'cybercrime', 'legal', 'acm code', 'professional responsibility'],
-  CS324: ['graphics', 'visual computing', 'rendering', 'opengl', '3d', 'animation', 'rasterization', 'shading', 'texture', 'polygon', 'ray tracing'],
-  CS325: ['mobile', 'android', 'ios', 'flutter', 'react native', 'mobile development', 'mobile app', 'smartphone', 'tablet', 'ios development', 'android development'],
-  CS326: ['modeling', 'simulation', 'discrete event', 'monte carlo', 'queuing', 'stochastic', 'continuous simulation', 'system dynamics'],
-  CS327: ['data mining', 'clustering', 'classification', 'association rule', 'apriori', 'decision tree', 'naive bayes', 'k-means', 'pattern discovery', 'data mining'],
-  CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer', 'ml', 'machine learning'],
-};
-
-/* ─── Verified academic sources database ─────────────────────────────────── */
-const VERIFIED_ACADEMIC_SOURCES: Record<string, Source[]> = {
-  'data mining': [
-    { name: 'Data Mining: Concepts and Techniques (Han & Kamber)', url: 'https://www.sciencedirect.com/book/9780123814791/data-mining-concepts-and-techniques', courseCode: 'CS327', type: 'book', verified: true },
-    { name: 'Introduction to Data Mining (Tan, Steinbach, Kumar)', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook/index.php', courseCode: 'CS327', type: 'textbook', verified: true },
-    { name: 'UC Irvine Machine Learning Repository', url: 'https://archive.ics.uci.edu/ml/index.php', courseCode: 'CS327', type: 'dataset', verified: true },
-  ],
-  'machine learning': [
-    { name: 'Stanford CS229: Machine Learning', url: 'https://cs229.stanford.edu/', courseCode: 'CS328', type: 'course', verified: true },
-    { name: 'Deep Learning Book (Goodfellow et al.)', url: 'https://www.deeplearningbook.org/', courseCode: 'CS328', type: 'book', verified: true },
-    { name: 'Google Machine Learning Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'tutorial', verified: true },
-  ],
-  'general': [
-    { name: 'MIT OpenCourseWare Computer Science', url: 'https://ocw.mit.edu/search/?d=Electrical%20Engineering%20and%20Computer%20Science', courseCode: 'CS', type: 'course', verified: true },
-    { name: 'arXiv Computer Science', url: 'https://arxiv.org/archive/cs', courseCode: 'CS', type: 'papers', verified: true },
-  ],
-};
-
-/* ─── Detect relevant courses ────────────────────────────────────────────── */
-function detectRelevantCourses(message: string): string[] {
-  const lower = message.toLowerCase();
-  const detected: string[] = [];
-  for (const [code, keywords] of Object.entries(COURSE_KEYWORDS)) {
-    if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-      detected.push(code);
-    }
-  }
-  return detected.length > 0 ? detected : Object.keys(COURSE_KEYWORDS);
-}
-
-/* ─── Get verified sources for topic ─────────────────────────────────────── */
-function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string[]): Source[] {
-  const lowerMessage = userMessage.toLowerCase();
-  const sources: Source[] = [];
-  
-  for (const [topic, topicSources] of Object.entries(VERIFIED_ACADEMIC_SOURCES)) {
-    if (lowerMessage.includes(topic)) {
-      sources.push(...topicSources);
-    }
-  }
-  
-  if (sources.length < 2) {
-    sources.push(...VERIFIED_ACADEMIC_SOURCES['general']);
-  }
-  
-  return sources.slice(0, 5);
-}
-
-/* ─── RAG: build context from actual course files ────────────────────────── */
+/* ─── RAG: build context from course files ───────────────────────────────── */
 async function buildRAGContext(userMessage: string): Promise<{ contextBlock: string; sources: Source[] }> {
   const relevantCourses = detectRelevantCourses(userMessage);
   const sources = getVerifiedSourcesForTopic(userMessage, relevantCourses);
@@ -357,51 +409,66 @@ function RenderTextWithLinks({ text }: { text: string }) {
 const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analysis }) => {
   const [expanded, setExpanded] = useState(false);
   
+  const getFileIcon = () => {
+    switch (analysis.fileType) {
+      case 'pdf': return <FileText className="w-4 h-4 text-red-600" />;
+      case 'txt': return <File className="w-4 h-4 text-blue-600" />;
+      case 'pptx': return <File className="w-4 h-4 text-orange-600" />;
+      default: return <FileText className="w-4 h-4 text-gray-600" />;
+    }
+  };
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200"
     >
-      <div className="flex items-center gap-2 mb-2">
-        <FileText className="w-4 h-4 text-blue-600" />
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {getFileIcon()}
         <span className="text-xs font-semibold text-blue-900">File Analysis: {analysis.fileName}</span>
         <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-700">
           {analysis.fileType.toUpperCase()}
         </span>
         {analysis.pageCount && (
-          <span className="text-[10px] text-blue-600">{analysis.pageCount} pages</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+            {analysis.pageCount} pages
+          </span>
         )}
         {analysis.slideCount && (
-          <span className="text-[10px] text-blue-600">{analysis.slideCount} slides</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+            ~{analysis.slideCount} slides
+          </span>
         )}
       </div>
       
       <div className="space-y-2">
         <div>
           <span className="text-xs font-medium text-blue-800">Summary:</span>
-          <p className="text-xs text-blue-700 mt-0.5">{analysis.summary}</p>
+          <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">{analysis.summary}</p>
         </div>
         
-        <div>
-          <span className="text-xs font-medium text-blue-800">Key Points:</span>
-          <ul className="mt-0.5 space-y-0.5">
-            {analysis.keyPoints.slice(0, expanded ? undefined : 3).map((point, idx) => (
-              <li key={idx} className="text-xs text-blue-700 flex items-start gap-1">
-                <span className="text-blue-500">•</span>
-                <span>{point}</span>
-              </li>
-            ))}
-          </ul>
-          {analysis.keyPoints.length > 3 && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
-            >
-              {expanded ? 'Show less' : `Show ${analysis.keyPoints.length - 3} more points`}
-            </button>
-          )}
-        </div>
+        {analysis.keyPoints.length > 0 && (
+          <div>
+            <span className="text-xs font-medium text-blue-800">Key Points:</span>
+            <ul className="mt-0.5 space-y-0.5">
+              {analysis.keyPoints.slice(0, expanded ? undefined : 3).map((point, idx) => (
+                <li key={idx} className="text-xs text-blue-700 flex items-start gap-1">
+                  <span className="text-blue-500">•</span>
+                  <span className="flex-1">{point}</span>
+                </li>
+              ))}
+            </ul>
+            {analysis.keyPoints.length > 3 && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="text-[10px] text-blue-500 hover:text-blue-700 mt-1 font-medium"
+              >
+                {expanded ? 'Show less' : `Show ${analysis.keyPoints.length - 3} more points`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -418,7 +485,7 @@ const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index
     <CheckCircle className="w-3 h-3 text-green-600" />
     <span className="font-mono text-green-600 font-bold">[{index}]</span>
     <span className="truncate max-w-[200px]">{source.name}</span>
-    {source.courseCode && (
+    {source.courseCode && source.courseCode !== 'CS' && (
       <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded">
         {source.courseCode}
       </span>
@@ -462,7 +529,7 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
         {isUser ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
       </div>
 
-      <div className={`flex flex-col gap-2 max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col gap-2 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
         <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
           isUser ? 'bg-primary text-white rounded-br-sm' : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
         }`}>
@@ -537,7 +604,7 @@ async function callGroqAPI(
   ragSources: Source[],
   fileAnalysis?: FileAnalysisResult
 ): Promise<{ text: string; sources: Source[] }> {
-  const sourcesList = ragSources.map((s, i) => `${i+1}. [${s.name}](${s.url}) - ${s.courseCode || 'CS'}`).join('\n');
+  const sourcesList = ragSources.map((s, i) => `${i+1}. [${s.name}](${s.url})`).join('\n');
   
   let fileContext = '';
   if (fileAnalysis) {
@@ -549,24 +616,24 @@ ${fileAnalysis.pageCount ? `- Pages: ${fileAnalysis.pageCount}` : ''}
 ${fileAnalysis.slideCount ? `- Slides: ${fileAnalysis.slideCount}` : ''}
 - Summary: ${fileAnalysis.summary}
 - Key Points: ${fileAnalysis.keyPoints.join(', ')}
-- Full text content (excerpt): ${fileAnalysis.fullText.substring(0, 2000)}
+- Content: ${fileAnalysis.fullText.substring(0, 2000)}
 
-Please answer questions about this file based on the content above.`;
+Please answer questions based on this file content first.`;
   }
 
   const systemPrompt = `You are Sphere, an academic CS assistant for LearnSphere.
 
 **VERIFIED SOURCES YOU CAN CITE:**
-${sourcesList || "No specific sources provided - answer based on your knowledge without citations"}
+${sourcesList || "No specific sources provided - answer based on your knowledge"}
 
 ${fileContext}
 
 **CITATION RULES:**
-1. You MUST include at least 2-3 citations in your response using the sources listed above
-2. Use this exact format: [Source Name](URL)
-3. Place citations naturally within your answer
+1. Include at least 2 citations using the sources listed above
+2. Use format: [Source Name](URL)
+3. Place citations naturally in your answer
 4. DO NOT add a "References" section - sources will be displayed separately
-5. If a file was uploaded, answer questions based on its content first
+5. If a file was uploaded, prioritize answering from its content
 
 **RESPONSE FORMAT:**
 - Provide a clear, educational answer
@@ -584,47 +651,52 @@ ${fileContext}
   let finalUserMessage = userMessage || (fileAnalysis ? "Please analyze this file and provide key insights." : "What would you like to know?");
   conversationMessages.push({ role: 'user', content: finalUserMessage });
 
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: conversationMessages,
-      temperature: 0.3,
-      max_tokens: 1000,
-    }),
-  });
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: conversationMessages,
+        temperature: 0.3,
+        max_tokens: 1000,
+      }),
+    });
 
-  if (!response.ok) throw new Error('API Error');
+    if (!response.ok) throw new Error('API Error');
 
-  const data = await response.json();
-  let rawText = data.choices[0].message.content;
-  rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
+    const data = await response.json();
+    let rawText = data.choices[0].message.content;
+    rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
 
-  // Parse sources that the AI actually cited
-  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
-  const citedSources: Source[] = [];
-  let match;
-  
-  while ((match = linkRegex.exec(rawText)) !== null) {
-    const matchingSource = ragSources.find(s => s.url === match[2] || s.name === match[1]);
-    if (matchingSource && matchingSource.verified) {
-      if (!citedSources.find(s => s.url === matchingSource.url)) {
-        citedSources.push(matchingSource);
+    // Parse sources that the AI actually cited
+    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+    const citedSources: Source[] = [];
+    let match;
+    
+    while ((match = linkRegex.exec(rawText)) !== null) {
+      const matchingSource = ragSources.find(s => s.url === match[2] || s.name === match[1]);
+      if (matchingSource && matchingSource.verified) {
+        if (!citedSources.find(s => s.url === matchingSource.url)) {
+          citedSources.push(matchingSource);
+        }
       }
     }
-  }
-  
-  let finalSources = citedSources;
-  if (finalSources.length < 2 && ragSources.length > 0) {
-    const unusedSources = ragSources.filter(s => !citedSources.find(c => c.url === s.url));
-    finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
-  }
-  
-  finalSources = finalSources.slice(0, 5);
-  const cleanText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
+    
+    let finalSources = citedSources;
+    if (finalSources.length < 2 && ragSources.length > 0) {
+      const unusedSources = ragSources.filter(s => !citedSources.find(c => c.url === s.url));
+      finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
+    }
+    
+    finalSources = finalSources.slice(0, 5);
+    const cleanText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
 
-  return { text: cleanText, sources: finalSources };
+    return { text: cleanText, sources: finalSources };
+  } catch (error) {
+    console.error('API call error:', error);
+    throw error;
+  }
 }
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
@@ -659,13 +731,13 @@ export function AIChatSection() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping, isSearching]);
+  }, [messages, isTyping, isSearching, isProcessingFile]);
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v4');
+      const savedSessions = localStorage.getItem('sphere_sessions_v5');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v4');
+      const savedCurrent = localStorage.getItem('sphere_current_v5');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -695,10 +767,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions(prev => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v4', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v5', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v4', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v5', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -709,10 +781,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v4', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v5', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v4', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v5', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -750,7 +822,6 @@ export function AIChatSection() {
   const processFiles = async (files: PendingFile[], userQuestion: string): Promise<FileAnalysisResult | null> => {
     if (files.length === 0) return null;
     
-    // For now, process only the first file (can be extended for multiple files)
     const file = files[0];
     setAnalyzingFile(file.name);
     setUploadProgress(0);
@@ -765,7 +836,7 @@ export function AIChatSection() {
       
       clearInterval(progressInterval);
       setUploadProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 500)); // Show completion
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       return analysis;
     } catch (error) {
@@ -856,7 +927,7 @@ export function AIChatSection() {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: `I encountered an error while processing your request: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again with a smaller file or different format.`,
+        text: `I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again with a smaller file or different format.`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, errMsg];
@@ -920,7 +991,7 @@ export function AIChatSection() {
                 </div>
                 <button
                   onClick={() => { createNewSession(); setShowHistory(false); }}
-                  className="w-full py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-accent"
+                  className="w-full py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-accent transition-colors"
                 >
                   + New Chat
                 </button>
@@ -947,7 +1018,7 @@ export function AIChatSection() {
         {/* Main Chat Panel */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl border shadow-sm overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b bg-white">
+          <div className="flex items-center justify-between px-5 py-3 border-b bg-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -956,7 +1027,7 @@ export function AIChatSection() {
                 <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${statusOnline ? 'bg-green-400' : 'bg-gray-300'}`} />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold">Sphere</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">
                     2-5 Verified Sources
@@ -988,7 +1059,7 @@ export function AIChatSection() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
+                className="overflow-hidden flex-shrink-0"
               >
                 <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-100">
                   <AlertCircle className="w-3.5 h-3.5 text-red-500" />
@@ -1011,13 +1082,13 @@ export function AIChatSection() {
                 <div className="flex gap-2 mt-4 flex-wrap justify-center">
                   <button 
                     onClick={() => setInputValue("What is data mining?")}
-                    className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200"
+                    className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
                   >
                     What is data mining?
                   </button>
                   <button 
                     onClick={() => setShowFileUpload(true)}
-                    className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs hover:bg-primary/20"
+                    className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs hover:bg-primary/20 transition-colors"
                   >
                     Upload a file
                   </button>
@@ -1028,7 +1099,7 @@ export function AIChatSection() {
             )}
             
             {/* Searching Indicator */}
-            {isSearching && !isTyping && (
+            {isSearching && !isTyping && !isProcessingFile && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Search className="w-4 h-4 text-primary animate-pulse" />
@@ -1045,15 +1116,15 @@ export function AIChatSection() {
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                   <Database className="w-4 h-4 text-blue-600 animate-pulse" />
                 </div>
-                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border min-w-[200px]">
+                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border min-w-[250px]">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
                       <span className="text-xs text-gray-600">Analyzing {analyzingFile}...</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1">
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                       <div 
-                        className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
@@ -1063,7 +1134,7 @@ export function AIChatSection() {
             )}
             
             {/* Typing Indicator */}
-            {isTyping && !isProcessingFile && (
+            {isTyping && !isProcessingFile && !isSearching && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Bot className="w-4 h-4 text-primary" />
@@ -1078,7 +1149,7 @@ export function AIChatSection() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t bg-white">
+          <div className="p-4 border-t bg-white flex-shrink-0">
             {/* Pending Files */}
             <AnimatePresence>
               {pendingFiles.length > 0 && (
@@ -1094,9 +1165,9 @@ export function AIChatSection() {
                         {file.type === 'pdf' && <FileText className="w-3 h-3" />}
                         {file.type === 'txt' && <File className="w-3 h-3" />}
                         {file.type === 'pptx' && <File className="w-3 h-3" />}
-                        <span>{file.name}</span>
-                        <span className="text-gray-400">({formatFileSize(file.size)})</span>
-                        <button onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                        <span className="max-w-[150px] truncate">{file.name}</span>
+                        <span className="text-gray-400 text-[10px]">({formatFileSize(file.size)})</span>
+                        <button onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1">
                           <X className="w-3 h-3" />
                         </button>
                       </div>
