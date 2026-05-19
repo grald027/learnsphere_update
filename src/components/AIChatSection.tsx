@@ -33,8 +33,8 @@ const formatTime = (date: Date) =>
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function TypingIndicator() {
   return (
-    <div className="ai-message-row">
-      <div className="avatar assistant-avatar">AI</div>
+    <div className="message-row ai-row">
+      <div className="avatar">AI</div>
       <div className="bubble assistant-bubble typing-bubble">
         <span className="dot" />
         <span className="dot" />
