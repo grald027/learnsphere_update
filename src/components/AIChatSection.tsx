@@ -84,12 +84,20 @@ interface FileAnalysisResult {
   slideCount?: number;
 }
 
-/* ─── Config ─────────────────────────────────────────────────────────────── */
+// Safe environment variable access - FIXED
+let GROQ_API_KEY = '';
+try {
+  // @ts-ignore - Vite injects this at build time
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROQ_API_KEY) {
+    // @ts-ignore
+    GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+  }
+} catch (e) {
+  console.warn('Could not access import.meta.env, using fallback');
+  GROQ_API_KEY = process?.env?.VITE_GROQ_API_KEY || '';
+}
+
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// Safe Vite environment variable access
-const GROQ_API_KEY = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROQ_API_KEY 
-  ? import.meta.env.VITE_GROQ_API_KEY 
-  : '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== '' && GROQ_API_KEY !== 'undefined';
 
 /* ─── Course keyword map ─────────────────────────────────────────────────── */
@@ -739,9 +747,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_final');
+      const savedSessions = localStorage.getItem('sphere_sessions_fixed');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_final');
+      const savedCurrent = localStorage.getItem('sphere_current_fixed');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -773,10 +781,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_final', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_fixed', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_final', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_fixed', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -787,10 +795,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_final', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_fixed', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_final', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_fixed', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
