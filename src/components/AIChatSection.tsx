@@ -28,6 +28,18 @@ import {
   File,
   FileUp,
   Database,
+  Copy,
+  Check,
+  Globe,
+  Shield,
+  Brain,
+  FolderOpen,
+  Tag,
+  Calendar,
+  BarChart3,
+  TrendingUp,
+  Award,
+  Star,
 } from 'lucide-react';
 
 // ─── PDF.js worker ──────────────────────────────────────────────────────────
@@ -153,6 +165,40 @@ function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string
 
   const unique = Array.from(new Map(sources.map((s) => [s.url, s])).values());
   return unique.slice(0, 5);
+}
+
+// Clean and format AI response text
+function cleanAndFormatResponse(text: string): string {
+  let cleaned = text;
+  
+  // Remove markdown bold/italic
+  cleaned = cleaned.replace(/\*\*/g, '');
+  cleaned = cleaned.replace(/\*/g, '');
+  
+  // Fix numbering - ensure proper spacing after numbers
+  cleaned = cleaned.replace(/^(\d+)\./gm, '$1.');
+  cleaned = cleaned.replace(/(\d+)\.([A-Z])/g, '$1. $2');
+  
+  // Ensure proper spacing after colons
+  cleaned = cleaned.replace(/:\s*/g, ': ');
+  
+  // Fix bullet points
+  cleaned = cleaned.replace(/^[-•]\s*/gm, '• ');
+  
+  // Remove excessive newlines (more than 2)
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  
+  // Ensure spaces after periods
+  cleaned = cleaned.replace(/\.([A-Z])/g, '. $1');
+  
+  // Remove "END OF UPLOADED FILE CONTENT" and similar markers
+  cleaned = cleaned.replace(/END OF UPLOADED FILE CONTENT.*$/i, '');
+  cleaned = cleaned.replace(/^-{3,}.*$/gm, '');
+  
+  // Trim whitespace
+  cleaned = cleaned.trim();
+  
+  return cleaned;
 }
 
 /* ─── File Analysis Functions ────────────────────────────────────────────── */
@@ -376,66 +422,86 @@ ${fileAnalysis.fullText.substring(0, 3000)}`;
 
   if (hasFile) {
     if (isFileOnlyQuestion) {
-      // STRICT: Only analyze the file, no external sources
       systemPrompt = `You are Sphere, an academic assistant.
 
 **FILE TO ANALYZE:**
 ${fileContext}
 
-**CRITICAL RULES:**
-1. DO NOT cite any external sources - ONLY use the file content above
-2. DO NOT add references or bibliographies
-3. DO NOT use phrases like "As seen in the file", "According to the presentation", "The document shows"
-4. Just state the facts directly from the file
-5. If this is a PowerPoint, describe the key points from each slide section
-6. Be specific and reference actual content from the file
-7. Keep your response concise (3-5 paragraphs)
+**CRITICAL FORMATTING RULES:**
+1. Format your response with clean markdown:
+   - Use ## for main headings
+   - Use ### for subheadings
+   - Use numbered lists (1., 2., 3.) for sequential information
+   - Use bullet points (• or -) for non-sequential lists
+   - Add blank lines between sections
 
-**EXAMPLE STYLE:**
-"The presentation covers three main topics. First, image classification using CNNs achieves 94% accuracy. Second, natural language processing for sentiment analysis. Third, predictive modeling for healthcare applications."
+2. CONTENT RULES:
+   - DO NOT cite external sources
+   - DO NOT add references
+   - DO NOT use "As seen in", "According to", "The file shows"
+   - Extract and organize information from the file only
+   - Use proper spacing and line breaks
 
-**DO NOT USE:**
-"Avoid: As seen in, According to, The file shows, The presentation indicates, As noted in"`;
+3. EXAMPLE FORMAT:
+## Section Title
+
+First paragraph with key information.
+
+### Subsection
+
+1. First point with details
+2. Second point with details
+3. Third point with details
+
+• Bullet item one
+• Bullet item two
+
+## Next Section
+
+Continue with clean formatting.
+
+Provide a well-structured, readable response based solely on the file content.`;
     } else {
-      // File + specific question - prioritize file
       systemPrompt = `You are Sphere, an academic assistant.
 
 **UPLOADED FILE (Primary source):**
 ${fileContext}
 
-**INSTRUCTIONS:**
-1. Answer primarily using the uploaded file content
-2. Keep responses direct and factual
-3. Do NOT use phrases like "As seen in the file" or "According to the presentation"
-4. Only use external knowledge if the file completely lacks the answer
-5. No citations or references unless absolutely necessary
+**FORMATTING RULES:**
+- Use ## for main headings
+- Use ### for subheadings  
+- Use numbered lists (1., 2., 3.)
+- Use bullet points (•)
+- Add blank lines between sections
+- Keep responses clean and well-organized
 
-**FORMAT:** Clear, direct answers focusing on the file's actual content.`;
+Answer primarily using the uploaded file content with proper formatting.`;
     }
   } else if (needsSources) {
-    // Academic question with sources
     systemPrompt = `You are Sphere, an academic CS assistant.
 
 **VERIFIED SOURCES:**
 ${sourcesList || 'No specific sources provided'}
 
+**FORMATTING RULES:**
+- Use ## for main headings
+- Use numbered lists for sequential info
+- Use bullet points for non-sequential lists
+- Add proper spacing between sections
+
 **RULES:**
 1. Include 1-2 inline citations where relevant
 2. Use format: [Source Name](URL)
 3. DO NOT add a "References" section
-4. DO NOT cite every sentence - cite only key claims
-5. Write naturally without repetitive phrases
-
-**FORMAT:** Clear, educational answer with occasional citations.`;
+4. Keep responses clean and readable`;
   } else {
-    // Casual conversation - NO SOURCES
     systemPrompt = `You are Sphere, an academic CS assistant.
 
-**RULES:**
-1. Do NOT include any citations or references
-2. Be conversational and helpful
-3. Keep responses concise for casual questions
-4. Answer naturally without markdown or special formatting`;
+**FORMATTING RULES:**
+- Keep responses clean and well-spaced
+- Use simple formatting without markdown
+- Be conversational and helpful
+- No citations or references needed`;
   }
 
   const conversationMessages = [
@@ -446,7 +512,7 @@ ${sourcesList || 'No specific sources provided'}
     })),
   ];
 
-  const finalUserMessage = userMessage || (fileAnalysis ? 'Please analyze this file.' : 'What would you like to know?');
+  const finalUserMessage = userMessage || (fileAnalysis ? 'Please analyze this file with clean markdown formatting using headings, numbered lists, and proper spacing.' : 'What would you like to know?');
   conversationMessages.push({ role: 'user', content: finalUserMessage });
 
   try {
@@ -457,7 +523,7 @@ ${sourcesList || 'No specific sources provided'}
         model: 'llama-3.3-70b-versatile',
         messages: conversationMessages,
         temperature: hasFile ? 0.2 : 0.3,
-        max_tokens: hasFile ? 800 : 1000,
+        max_tokens: hasFile ? 1500 : 1000,
       }),
     });
 
@@ -466,7 +532,7 @@ ${sourcesList || 'No specific sources provided'}
     const data = await response.json();
     let rawText = data.choices[0].message.content;
     
-    // Clean up repetitive phrases
+    // Clean repetitive phrases
     const cleanupPatterns = [
       /As seen in the uploaded file[,:]?\s*/gi,
       /As seen in the file[,:]?\s*/gi,
@@ -474,18 +540,14 @@ ${sourcesList || 'No specific sources provided'}
       /The (file|presentation|document) (shows|indicates|states|mentions|provides)[,:]?\s*/gi,
       /As noted in the (file|presentation)[,:]?\s*/gi,
       /As discussed in the (file|presentation)[,:]?\s*/gi,
-      /Looking at the (file|presentation)[,:]?\s*/gi,
-      /From the (file|presentation)[,:]?\s*/gi,
     ];
     
     for (const pattern of cleanupPatterns) {
       rawText = rawText.replace(pattern, '');
     }
     
-    rawText = rawText
-      .replace(/\*\*/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+    // Apply clean formatting
+    rawText = cleanAndFormatResponse(rawText);
 
     // Only extract sources for non-casual, non-file responses
     let finalSources: Source[] = [];
@@ -518,36 +580,68 @@ ${sourcesList || 'No specific sources provided'}
 }
 
 /* ─── Components ─────────────────────────────────────────────────────────── */
+const CopyButton: React.FC<{ text: string }> = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+      title="Copy to clipboard"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+};
+
 const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
 
-  while ((match = linkRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(<span key={lastIndex}>{text.slice(lastIndex, match.index)}</span>);
-    }
-    parts.push(
-      <a
-        key={match.index}
-        href={match[2]}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-0.5 text-primary underline underline-offset-2 hover:text-accent font-medium"
-      >
-        {match[1]}
-        <ExternalLink className="w-2.5 h-2.5" />
-      </a>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(<span key={lastIndex}>{text.slice(lastIndex)}</span>);
-  }
-
-  return <>{parts}</>;
+  // Process markdown-style formatting
+  let formattedText = text;
+  
+  // Convert markdown headers
+  formattedText = formattedText.replace(/^## (.*$)/gm, '<h2 class="text-lg font-bold mt-4 mb-2 text-gray-800">$1</h2>');
+  formattedText = formattedText.replace(/^### (.*$)/gm, '<h3 class="text-md font-semibold mt-3 mb-1 text-gray-700">$1</h3>');
+  
+  // Convert bold and italic
+  formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>');
+  formattedText = formattedText.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+  
+  // Convert numbered lists
+  formattedText = formattedText.replace(/^(\d+)\.\s+(.*$)/gm, '<li class="ml-6 mb-1 list-decimal">$2</li>');
+  formattedText = formattedText.replace(/(<li class="ml-6 mb-1 list-decimal">.*<\/li>)/s, '<ol class="my-2">$1</ol>');
+  
+  // Convert bullet points
+  formattedText = formattedText.replace(/^[•\-]\s+(.*$)/gm, '<li class="ml-6 mb-1 list-disc">$1</li>');
+  formattedText = formattedText.replace(/(<li class="ml-6 mb-1 list-disc">.*<\/li>)/s, '<ul class="my-2">$1</ul>');
+  
+  // Convert paragraphs (double newlines)
+  formattedText = formattedText.replace(/\n\n/g, '</p><p class="mb-2 leading-relaxed">');
+  formattedText = '<p class="mb-2 leading-relaxed">' + formattedText + '</p>';
+  
+  // Clean up empty paragraphs
+  formattedText = formattedText.replace(/<p class="mb-2 leading-relaxed"><\/p>/g, '');
+  
+  // Now process links within the HTML
+  const processLinks = (html: string): string => {
+    return html.replace(linkRegex, (match, linkText, url) => {
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 text-primary underline underline-offset-2 hover:text-accent font-medium">${linkText}<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg></a>`;
+    });
+  };
+  
+  const finalHtml = processLinks(formattedText);
+  
+  return <div dangerouslySetInnerHTML={{ __html: finalHtml }} />;
 };
 
 const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analysis }) => {
@@ -567,28 +661,28 @@ const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analy
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         {getFileIcon()}
-        <span className="text-xs font-semibold text-blue-900">File Analysis: {analysis.fileName}</span>
-        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-700">{analysis.fileType.toUpperCase()}</span>
+        <span className="text-xs font-semibold text-blue-900">📄 File Analysis: {analysis.fileName}</span>
+        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded-full text-blue-700">{analysis.fileType.toUpperCase()}</span>
         {analysis.pageCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{analysis.pageCount} pages</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">📖 {analysis.pageCount} pages</span>
         )}
         {analysis.slideCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">~{analysis.slideCount} slides</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">🎯 ~{analysis.slideCount} slides</span>
         )}
       </div>
 
       <div className="space-y-2">
         <div>
-          <span className="text-xs font-medium text-blue-800">Summary:</span>
+          <span className="text-xs font-medium text-blue-800">📋 Summary:</span>
           <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">{analysis.summary}</p>
         </div>
 
         {analysis.keyPoints.length > 0 && (
           <div>
-            <span className="text-xs font-medium text-blue-800">Key Points:</span>
+            <span className="text-xs font-medium text-blue-800">💡 Key Points:</span>
             <ul className="mt-0.5 space-y-0.5">
               {analysis.keyPoints.slice(0, expanded ? undefined : 3).map((point, idx) => (
                 <li key={idx} className="text-xs text-blue-700 flex items-start gap-1">
@@ -617,13 +711,13 @@ const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index
     href={source.url}
     target="_blank"
     rel="noopener noreferrer"
-    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-green-50 border-green-200 text-green-700 text-xs font-medium hover:shadow-md transition-all group"
+    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-green-700 text-xs font-medium hover:shadow-md transition-all group"
   >
     <CheckCircle className="w-3 h-3 text-green-600" />
     <span className="font-mono text-green-600 font-bold">[{index}]</span>
     <span className="truncate max-w-[200px]">{source.name}</span>
     {source.courseCode && source.courseCode !== 'CS' && (
-      <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded">{source.courseCode}</span>
+      <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded-full">{source.courseCode}</span>
     )}
     <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100" />
   </a>
@@ -654,24 +748,29 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row group'}`}
     >
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-          isUser ? 'bg-primary/15' : 'bg-primary/10'
+          isUser ? 'bg-primary/15' : 'bg-gradient-to-br from-primary/20 to-primary/10'
         }`}
       >
         {isUser ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
       </div>
 
-      <div className={`flex flex-col gap-2 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col gap-2 max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
         <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+          className={`relative px-4 py-3 rounded-2xl text-sm leading-relaxed ${
             isUser
-              ? 'bg-primary text-white rounded-br-sm'
+              ? 'bg-gradient-to-r from-primary to-accent text-white rounded-br-sm'
               : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
           }`}
         >
+          {!isUser && (
+            <div className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <CopyButton text={msg.text} />
+            </div>
+          )}
           {isUser ? msg.text : <RenderTextWithLinks text={msg.text} />}
         </div>
 
@@ -681,8 +780,8 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
           <div className="mt-2 pt-2 border-t border-gray-200 w-full">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-3.5 h-3.5 text-green-600" />
-              <span className="text-xs font-semibold text-gray-700">REFERENCES</span>
-              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+              <span className="text-xs font-semibold text-gray-700">📚 REFERENCES</span>
+              <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
                 {msg.sources!.length} {msg.sources!.length === 1 ? 'source' : 'sources'}
               </span>
             </div>
@@ -694,7 +793,10 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
           </div>
         )}
 
-        <span className="text-[10px] text-gray-400 px-1">{msg.time}</span>
+        <span className="text-[10px] text-gray-400 px-1 flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5" />
+          {msg.time}
+        </span>
       </div>
     </motion.div>
   );
@@ -709,7 +811,7 @@ const SessionItem: React.FC<{
   <div
     onClick={onClick}
     className={`group flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all ${
-      isActive ? 'bg-primary/10 border border-primary/20' : 'hover:bg-gray-50'
+      isActive ? 'bg-gradient-to-r from-primary/10 to-accent/5 border border-primary/20 shadow-sm' : 'hover:bg-gray-50'
     }`}
   >
     <MessageSquare className={`w-4 h-4 mt-0.5 ${isActive ? 'text-primary' : 'text-gray-400'}`} />
@@ -723,7 +825,7 @@ const SessionItem: React.FC<{
     </div>
     <button
       onClick={onDelete}
-      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
+      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all"
     >
       <Trash2 className="w-3.5 h-3.5" />
     </button>
@@ -772,9 +874,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v7');
+      const savedSessions = localStorage.getItem('sphere_sessions_v8');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v7');
+      const savedCurrent = localStorage.getItem('sphere_current_v8');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -791,7 +893,7 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your academic CS assistant.\n\nI can analyze **PDF, TXT, and PPTX files** and provide detailed insights.\n\n**Features:**\n• Upload PDF, TXT, or PPTX files for analysis\n• Get summaries and key points from documents\n• Ask questions about file content\n• Receive citations from verified academic sources\n\n**Try uploading a file** or ask me about:\n• Data Mining (CS327)\n• Machine Learning (CS328)\n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\nWhat would you like to learn today?",
+      text: "# 👋 Welcome to Sphere\n\nYour intelligent academic CS assistant with advanced file analysis capabilities.\n\n## ✨ Features\n\n• **📄 Smart File Analysis** - Upload PDF, TXT, or PPTX files for instant insights\n• **🔍 Content Extraction** - Get summaries, key points, and detailed analysis\n• **📚 Academic Sources** - Receive citations from verified educational resources\n• **💬 Natural Conversations** - Ask questions about your files or CS topics\n\n## 🚀 Quick Start\n\n1. **Upload a file** using the paperclip button below\n2. **Ask questions** about your document\n3. **Get insights** with clean, formatted responses\n\n## 📖 Try These Topics\n\n• Data Mining (CS327)\n• Machine Learning (CS328)  \n• Programming Languages (CS321)\n• Software Engineering (CS322)\n\n**What would you like to explore today?**",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
@@ -806,10 +908,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -820,10 +922,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -896,7 +998,7 @@ export function AIChatSection() {
     let messageText = userCaption;
     if (hasFiles) {
       const fileNames = pendingFiles.map((f) => f.name).join(', ');
-      messageText = userCaption ? `[Uploaded: ${fileNames}]\n\n${userCaption}` : `Please analyze this file: ${fileNames}`;
+      messageText = userCaption ? `📎 Uploaded: ${fileNames}\n\n${userCaption}` : `📎 Please analyze this file: ${fileNames}`;
     }
 
     const newUserMsg: Message = {
@@ -920,8 +1022,8 @@ export function AIChatSection() {
         id: (Date.now() + 1).toString(),
         type: 'ai',
         text: !isOnline
-          ? "I'm offline. Please connect to the internet for file analysis."
-          : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
+          ? "## ⚠️ Offline Mode\n\nI'm currently offline. Please connect to the internet for file analysis and academic citations.\n\nOnce you're back online, try uploading your file again!"
+          : "## 🔧 Configuration Required\n\nAPI key not configured. Please add `VITE_GROQ_API_KEY` to your `.env` file.\n\nContact your administrator for assistance.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, offlineMsg];
@@ -969,7 +1071,7 @@ export function AIChatSection() {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: `I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+        text: `## ❌ Error Occurred\n\n${err instanceof Error ? err.message : 'Unknown error'}\n\nPlease try again or contact support if the issue persists.`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, errMsg];
@@ -1017,20 +1119,23 @@ export function AIChatSection() {
   const statusOnline = isOnline && isAPIKeyConfigured;
 
   return (
-    <section className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl flex gap-4 h-[85vh]">
+    <section className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl flex gap-4 h-[90vh]">
         <AnimatePresence>
           {showHistory && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
+              animate={{ width: 300, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="bg-white rounded-2xl border shadow-sm overflow-hidden flex-shrink-0"
+              className="bg-white/80 backdrop-blur-xl rounded-2xl border shadow-xl overflow-hidden flex-shrink-0"
             >
-              <div className="p-4 border-b">
+              <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-accent/5">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-bold">Chat History</h3>
-                  <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    Chat History
+                  </h3>
+                  <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -1039,12 +1144,12 @@ export function AIChatSection() {
                     createNewSession();
                     setShowHistory(false);
                   }}
-                  className="w-full py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-accent transition-colors"
+                  className="w-full py-2 bg-gradient-to-r from-primary to-accent text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all transform hover:scale-[1.02]"
                 >
                   + New Chat
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-1 max-h-[calc(85vh-120px)]">
+              <div className="flex-1 overflow-y-auto p-3 space-y-1 max-h-[calc(90vh-120px)]">
                 {sessions.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-8">No previous chats</p>
                 ) : (
@@ -1063,40 +1168,45 @@ export function AIChatSection() {
           )}
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col bg-white rounded-2xl border shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b bg-white flex-shrink-0">
+        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-xl rounded-2xl border shadow-xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b bg-white/50 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
                   <Bot className="w-5 h-5 text-primary" />
                 </div>
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    statusOnline ? 'bg-green-400' : 'bg-gray-300'
+                    statusOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'
                   }`}
                 />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold">Sphere</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">
+                  <h3 className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Sphere AI</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200 flex items-center gap-1">
+                    <Shield className="w-2.5 h-2.5" />
                     Verified Sources
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-                    PDF/TXT/PPTX
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex items-center gap-1">
+                    <Brain className="w-2.5 h-2.5" />
+                    Smart Analysis
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">Upload files · Direct answers · Clean responses</p>
+                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                  <Zap className="w-3 h-3" />
+                  Upload files · Clean responses · Academic citations
+                </p>
               </div>
             </div>
             <div className="flex gap-1">
-              <button onClick={() => setShowHistory((v) => !v)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <button onClick={() => setShowHistory((v) => !v)} className="p-2 rounded-xl hover:bg-gray-100 transition-colors" title="Chat History">
                 <Menu className="w-4 h-4" />
               </button>
-              <button onClick={exportChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <button onClick={exportChat} className="p-2 rounded-xl hover:bg-gray-100 transition-colors" title="Export Chat">
                 <Download className="w-4 h-4" />
               </button>
-              <button onClick={clearChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <button onClick={clearChat} className="p-2 rounded-xl hover:bg-gray-100 transition-colors" title="New Chat">
                 <Sparkles className="w-4 h-4" />
               </button>
             </div>
@@ -1118,26 +1228,43 @@ export function AIChatSection() {
             )}
           </AnimatePresence>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/30">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50/30 to-white/30">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                  <FileUp className="w-8 h-8 text-primary/60" />
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-6">
+                  <FileUp className="w-10 h-10 text-primary/60" />
                 </div>
-                <p className="text-gray-500 text-sm max-w-md">Upload PDF, TXT, or PPTX files for analysis, or ask about CS topics.</p>
-                <div className="flex gap-2 mt-4 flex-wrap justify-center">
+                <h2 className="text-2xl font-bold text-gray-700 mb-2">Welcome to Sphere AI</h2>
+                <p className="text-gray-500 text-sm max-w-md mb-6">Upload PDF, TXT, or PPTX files for instant analysis, or ask about CS topics with verified academic citations.</p>
+                <div className="flex gap-3 mt-2 flex-wrap justify-center">
                   <button
-                    onClick={() => setInputValue('What is data mining?')}
-                    className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
+                    onClick={() => setInputValue('What is data mining? Explain with examples.')}
+                    className="px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-50 rounded-xl text-sm hover:shadow-md transition-all flex items-center gap-2"
                   >
+                    <TrendingUp className="w-4 h-4 text-primary" />
                     What is data mining?
                   </button>
                   <button
                     onClick={() => setShowFileUpload(true)}
-                    className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs hover:bg-primary/20 transition-colors"
+                    className="px-4 py-2 bg-gradient-to-r from-primary/10 to-accent/10 text-primary rounded-xl text-sm hover:shadow-md transition-all flex items-center gap-2"
                   >
+                    <FileUp className="w-4 h-4" />
                     Upload a file
                   </button>
+                </div>
+                <div className="mt-8 flex gap-4 text-xs text-gray-400">
+                  <div className="flex items-center gap-1">
+                    <Award className="w-3 h-3" />
+                    Academic sources
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    Fast analysis
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    Verified content
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1150,7 +1277,7 @@ export function AIChatSection() {
                   <Search className="w-4 h-4 text-primary animate-pulse" />
                 </div>
                 <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border">
-                  <TypingDots label="Searching for sources..." />
+                  <TypingDots label="Searching academic sources..." />
                 </div>
               </div>
             )}
@@ -1160,14 +1287,14 @@ export function AIChatSection() {
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                   <Database className="w-4 h-4 text-blue-600 animate-pulse" />
                 </div>
-                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border min-w-[250px]">
+                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border min-w-[280px]">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
-                      <span className="text-xs text-gray-600">Analyzing {analyzingFile}...</span>
+                      <span className="text-xs text-gray-600 font-medium">Analyzing {analyzingFile}...</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                      <div className="bg-gradient-to-r from-blue-600 to-primary h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                     </div>
                   </div>
                 </div>
@@ -1188,7 +1315,7 @@ export function AIChatSection() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-4 border-t bg-white flex-shrink-0">
+          <div className="p-4 border-t bg-white/50 flex-shrink-0">
             <AnimatePresence>
               {pendingFiles.length > 0 && (
                 <motion.div
@@ -1197,16 +1324,16 @@ export function AIChatSection() {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden mb-3"
                 >
-                  <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-100">
+                  <div className="flex flex-wrap gap-2 pb-2">
                     {pendingFiles.map((file, i) => (
-                      <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-lg text-xs">
-                        {file.type === 'pdf' && <FileText className="w-3 h-3" />}
-                        {file.type === 'txt' && <File className="w-3 h-3" />}
-                        {file.type === 'pptx' && <File className="w-3 h-3" />}
-                        <span className="max-w-[150px] truncate">{file.name}</span>
+                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary/10 to-accent/5 rounded-xl text-xs border border-primary/20">
+                        {file.type === 'pdf' && <FileText className="w-3 h-3 text-red-600" />}
+                        {file.type === 'txt' && <File className="w-3 h-3 text-blue-600" />}
+                        {file.type === 'pptx' && <File className="w-3 h-3 text-orange-600" />}
+                        <span className="max-w-[150px] truncate font-medium">{file.name}</span>
                         <span className="text-gray-400 text-[10px]">({formatFileSize(file.size)})</span>
-                        <button onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} className="ml-1">
-                          <X className="w-3 h-3" />
+                        <button onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:bg-gray-200 rounded-full p-0.5 transition-colors">
+                          <X className="w-3 h-3 text-gray-400 hover:text-red-500" />
                         </button>
                       </div>
                     ))}
@@ -1229,13 +1356,13 @@ export function AIChatSection() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Ask about your file or CS topic..."
-                className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                 disabled={isTyping || isSearching || isProcessingFile}
               />
               <button
                 type="submit"
                 disabled={(!inputValue.trim() && pendingFiles.length === 0) || isTyping || isSearching || isProcessingFile}
-                className="p-2.5 bg-primary text-white rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
+                className="p-2.5 bg-gradient-to-r from-primary to-accent text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
               >
                 {isTyping || isProcessingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
@@ -1249,10 +1376,10 @@ export function AIChatSection() {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden mt-3"
                 >
-                  <div className="p-4 bg-gray-50 rounded-xl border">
+                  <div className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
                       <FileUp className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Upload File for Analysis</span>
+                      <span className="text-sm font-semibold text-gray-700">Upload File for Analysis</span>
                     </div>
                     <label className="block cursor-pointer">
                       <input
@@ -1263,16 +1390,16 @@ export function AIChatSection() {
                         multiple
                         className="hidden"
                       />
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors">
-                        <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Click to select files</p>
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary transition-all hover:bg-primary/5">
+                        <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                        <p className="text-sm text-gray-600 font-medium">Click to select files</p>
                         <p className="text-xs text-gray-400 mt-1">PDF, TXT, PPTX up to 20MB each</p>
                       </div>
                     </label>
-                    <div className="flex gap-3 mt-3 text-[10px] text-gray-400 justify-center">
-                      <span>✓ PDF text extraction</span>
-                      <span>✓ TXT full text</span>
-                      <span>✓ PPTX slide analysis</span>
+                    <div className="flex gap-4 mt-4 text-[10px] text-gray-400 justify-center">
+                      <span className="flex items-center gap-1">✓ PDF text extraction</span>
+                      <span className="flex items-center gap-1">✓ TXT full text</span>
+                      <span className="flex items-center gap-1">✓ PPTX slide analysis</span>
                     </div>
                   </div>
                 </motion.div>
@@ -1282,7 +1409,7 @@ export function AIChatSection() {
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
               {statusOnline
-                ? 'Upload files for analysis - AI gives direct, clean answers without repetitive phrases'
+                ? 'Ready to analyze files - Get clean, formatted responses with proper spacing and structure'
                 : 'Configure API key for file analysis'}
             </p>
           </div>
