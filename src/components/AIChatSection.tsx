@@ -1157,7 +1157,7 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your academic CS assistant with web search capabilities.\n\n**What I can do:**\n• Search the web for reliable academic sources\n• Analyze PDF, TXT, and PPTX files\n• Provide verified references from trusted sources (.edu, .org, academic databases)\n• Format responses with proper citations\n\n**Try asking me:**\n• 'What is machine learning?' - I'll search for sources\n• 'Explain neural networks with references'\n• Upload a file for analysis\n\nHow can I help you today?",
+      text: "Hello! I'm Sphere, your academic CS assistant!\n\nHow can I help you today?",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     const newId = Date.now().toString();
