@@ -85,16 +85,13 @@ interface FileAnalysisResult {
 }
 
 /* ─── Config - Using window env or fallback ───────────────────────────────── */
-// This approach works for both dev and production builds
 const getApiKey = () => {
-  // Try multiple ways to get the API key
   if (typeof window !== 'undefined' && (window as any).env?.VITE_GROQ_API_KEY) {
     return (window as any).env.VITE_GROQ_API_KEY;
   }
   if (typeof process !== 'undefined' && process.env && process.env.VITE_GROQ_API_KEY) {
     return process.env.VITE_GROQ_API_KEY;
   }
-  // Default fallback - you can set a dummy value for build
   return '';
 };
 
@@ -494,7 +491,7 @@ Provide a clean, helpful response.`;
   }
 }
 
-/* ─── Components (same as before, but shortened for brevity) ─────────────── */
+/* ─── Components ─────────────────────────────────────────────────────────── */
 const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
@@ -1115,6 +1112,6 @@ export function AIChatSection() {
           </div>
         </div>
       </div>
-    </motion.div>
+    </section>
   );
 }
