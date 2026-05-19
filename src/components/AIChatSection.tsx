@@ -86,7 +86,10 @@ interface FileAnalysisResult {
 
 /* ─── Config ─────────────────────────────────────────────────────────────── */
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || '';
+// Safe way to access environment variable
+const GROQ_API_KEY = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROQ_API_KEY 
+  ? import.meta.env.VITE_GROQ_API_KEY 
+  : '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
 
 /* ─── Course keyword map ─────────────────────────────────────────────────── */
@@ -101,7 +104,7 @@ const COURSE_KEYWORDS: Record<string, string[]> = {
   CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer'],
 };
 
-/* ─── Verified academic sources (only used when explicitly asked) ───────── */
+/* ─── Verified academic sources ─────────────────────────────────────────── */
 const VERIFIED_ACADEMIC_SOURCES: Record<string, Source[]> = {
   'data mining': [
     { name: 'Data Mining: Concepts and Techniques', url: 'https://www.sciencedirect.com/book/9780123814791', courseCode: 'CS327', type: 'book', verified: true },
@@ -745,9 +748,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v8');
+      const savedSessions = localStorage.getItem('sphere_sessions_final');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v8');
+      const savedCurrent = localStorage.getItem('sphere_current_final');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -779,10 +782,10 @@ export function AIChatSection() {
     setCurrentSessionId(newId);
     setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_final', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_final', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
@@ -793,10 +796,10 @@ export function AIChatSection() {
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v8', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_final', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v8', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_final', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -867,9 +870,8 @@ export function AIChatSection() {
     const hasFiles = pendingFiles.length > 0;
 
     let messageText = userCaption;
-    if (hasFiles) {
-      const fileNames = pendingFiles.map((f) => f.name).join(', ');
-      messageText = userCaption ? `${userCaption}` : `Please analyze this file.`;
+    if (hasFiles && !userCaption) {
+      messageText = `Please analyze this file.`;
     }
 
     const newUserMsg: Message = {
