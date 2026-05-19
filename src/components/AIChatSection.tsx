@@ -2,11 +2,32 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as pdfjsLib from 'pdfjs-dist';
 import {
-  Send, Bot, User, Loader2, Wifi, WifiOff, AlertCircle,
-  Trash2, Download, Sparkles, Menu, Paperclip, FileText,
-  X, Plus, ChevronLeft, Clock, MessageSquare, Zap,
-  BookOpen, ExternalLink, Search, CheckCircle,
-  File, FileUp, Database,
+  Send,
+  Bot,
+  User,
+  Loader2,
+  Wifi,
+  WifiOff,
+  AlertCircle,
+  Trash2,
+  Download,
+  Sparkles,
+  Menu,
+  Paperclip,
+  FileText,
+  X,
+  Plus,
+  ChevronLeft,
+  Clock,
+  MessageSquare,
+  Zap,
+  BookOpen,
+  ExternalLink,
+  Search,
+  CheckCircle,
+  File,
+  FileUp,
+  Database,
 } from 'lucide-react';
 
 // ─── PDF.js worker ──────────────────────────────────────────────────────────
@@ -65,10 +86,10 @@ interface FileAnalysisResult {
 
 /* ─── Config ─────────────────────────────────────────────────────────────── */
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
+const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || '';
 const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_API_KEY !== '';
 
-/* ─── Course keyword map for detection ───────────────────────────────────── */
+/* ─── Course keyword map ─────────────────────────────────────────────────── */
 const COURSE_KEYWORDS: Record<string, string[]> = {
   CS321: ['programming language', 'paradigm', 'functional', 'prolog', 'haskell', 'lambda', 'type system', 'syntax', 'semantics', 'compiler', 'interpreter'],
   CS322: ['software engineering', 'sdlc', 'agile', 'scrum', 'design pattern', 'uml', 'requirements', 'testing', 'waterfall', 'project management'],
@@ -80,35 +101,25 @@ const COURSE_KEYWORDS: Record<string, string[]> = {
   CS328: ['machine learning', 'neural network', 'deep learning', 'gradient descent', 'backpropagation', 'supervised', 'unsupervised', 'reinforcement learning', 'cnn', 'rnn', 'transformer'],
 };
 
-/* ─── Verified academic sources database ─────────────────────────────────── */
+/* ─── Verified academic sources ─────────────────────────────────────────── */
 const VERIFIED_ACADEMIC_SOURCES: Record<string, Source[]> = {
   'data mining': [
-    { name: 'Data Mining: Concepts and Techniques', url: 'https://www.sciencedirect.com/book/9780123814791/data-mining-concepts-and-techniques', courseCode: 'CS327', type: 'book', verified: true },
-    { name: 'Introduction to Data Mining', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook/index.php', courseCode: 'CS327', type: 'textbook', verified: true },
-    { name: 'UC Irvine Machine Learning Repository', url: 'https://archive.ics.uci.edu', courseCode: 'CS327', type: 'dataset', verified: true },
+    { name: 'Data Mining: Concepts and Techniques', url: 'https://www.sciencedirect.com/book/9780123814791', courseCode: 'CS327', type: 'book', verified: true },
+    { name: 'Introduction to Data Mining', url: 'https://www-users.cse.umn.edu/~kumar001/dmbook', courseCode: 'CS327', type: 'textbook', verified: true },
+    { name: 'UC Irvine ML Repository', url: 'https://archive.ics.uci.edu', courseCode: 'CS327', type: 'dataset', verified: true },
   ],
   'machine learning': [
-    { name: 'Stanford CS229: Machine Learning', url: 'https://cs229.stanford.edu', courseCode: 'CS328', type: 'course', verified: true },
+    { name: 'Stanford CS229', url: 'https://cs229.stanford.edu', courseCode: 'CS328', type: 'course', verified: true },
     { name: 'Deep Learning Book', url: 'https://www.deeplearningbook.org', courseCode: 'CS328', type: 'book', verified: true },
     { name: 'Google ML Crash Course', url: 'https://developers.google.com/machine-learning/crash-course', courseCode: 'CS328', type: 'tutorial', verified: true },
   ],
-  'programming': [
-    { name: 'SICP', url: 'https://mitpress.mit.edu/sites/default/files/sicp/index.html', courseCode: 'CS321', type: 'book', verified: true },
-    { name: 'Programming Language Pragmatics', url: 'https://www.cs.rochester.edu/~scott/pragmatics', courseCode: 'CS321', type: 'book', verified: true },
-  ],
-  'software engineering': [
-    { name: 'Software Engineering (Sommerville)', url: 'https://www.software-engin.com', courseCode: 'CS322', type: 'book', verified: true },
-    { name: 'Agile Alliance', url: 'https://www.agilealliance.org/agile101', courseCode: 'CS322', type: 'guide', verified: true },
-  ],
-  'general': [
+  general: [
     { name: 'MIT OpenCourseWare', url: 'https://ocw.mit.edu', courseCode: 'CS', type: 'course', verified: true },
     { name: 'arXiv CS', url: 'https://arxiv.org/archive/cs', courseCode: 'CS', type: 'papers', verified: true },
-    { name: 'Google Scholar', url: 'https://scholar.google.com', courseCode: 'CS', type: 'search', verified: true },
   ],
 };
 
-/* ─── Helper Functions ────────────────────────────────────────────────────── */
-
+/* ─── Helper Functions ───────────────────────────────────────────────────── */
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -129,128 +140,37 @@ function detectRelevantCourses(message: string): string[] {
 function getVerifiedSourcesForTopic(userMessage: string, detectedCourses: string[]): Source[] {
   const lowerMessage = userMessage.toLowerCase();
   const sources: Source[] = [];
-  
+
   for (const [topic, topicSources] of Object.entries(VERIFIED_ACADEMIC_SOURCES)) {
     if (lowerMessage.includes(topic)) {
       sources.push(...topicSources);
     }
   }
-  
-  for (const course of detectedCourses) {
-    if (course === 'CS327') sources.push(...VERIFIED_ACADEMIC_SOURCES['data mining']);
-    if (course === 'CS328') sources.push(...VERIFIED_ACADEMIC_SOURCES['machine learning']);
-    if (course === 'CS321') sources.push(...VERIFIED_ACADEMIC_SOURCES['programming']);
-    if (course === 'CS322') sources.push(...VERIFIED_ACADEMIC_SOURCES['software engineering']);
-  }
-  
+
   if (sources.length < 2) {
-    sources.push(...VERIFIED_ACADEMIC_SOURCES['general']);
+    sources.push(...VERIFIED_ACADEMIC_SOURCES.general);
   }
-  
-  const unique = Array.from(new Map(sources.map(s => [s.url, s])).values());
+
+  const unique = Array.from(new Map(sources.map((s) => [s.url, s])).values());
   return unique.slice(0, 5);
 }
 
-/* ─── File Analysis Functions ─────────────────────────────────────────────── */
-
-async function analyzePDF(file: File): Promise<FileAnalysisResult> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const pageCount = pdf.numPages;
-    const maxPages = Math.min(pageCount, 10);
-    const fullTexts: string[] = [];
-    
-    for (let i = 1; i <= maxPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      if (pageText.trim()) {
-        fullTexts.push(pageText);
-      }
-    }
-    
-    const fullText = fullTexts.join('\n\n').substring(0, 8000);
-    const analysis = await generateFileSummary(fullText, file.name, 'pdf');
-    
-    return {
-      fileName: file.name,
-      fileType: 'pdf',
-      fullText,
-      summary: analysis.summary,
-      keyPoints: analysis.keyPoints,
-      pageCount,
-    };
-  } catch (error) {
-    console.error('PDF analysis error:', error);
-    throw new Error(`Failed to analyze PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-async function analyzeTXT(file: File): Promise<FileAnalysisResult> {
-  try {
-    const text = await file.text();
-    const fullText = text.substring(0, 8000);
-    const analysis = await generateFileSummary(fullText, file.name, 'txt');
-    
-    return {
-      fileName: file.name,
-      fileType: 'txt',
-      fullText,
-      summary: analysis.summary,
-      keyPoints: analysis.keyPoints,
-    };
-  } catch (error) {
-    console.error('TXT analysis error:', error);
-    throw new Error(`Failed to analyze text file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
-  try {
-    const fileName = file.name;
-    const fileSize = file.size;
-    
-    let extractedText = '';
-    try {
-      const text = await file.text();
-      const textMatches = text.match(/>([^<]{20,})</g);
-      if (textMatches) {
-        extractedText = textMatches.map(m => m.slice(1, -1)).join(' ').substring(0, 4000);
-      }
-    } catch {
-      extractedText = '';
-    }
-    
-    const fullText = extractedText || `[PowerPoint file: ${fileName}] - Size: ${formatFileSize(fileSize)}.`;
-    const analysis = await generateFileSummary(fullText, file.name, 'pptx');
-    const estimatedSlides = Math.max(1, Math.floor(fileSize / 50000));
-    
-    return {
-      fileName: file.name,
-      fileType: 'pptx',
-      fullText,
-      summary: analysis.summary,
-      keyPoints: analysis.keyPoints,
-      slideCount: estimatedSlides,
-    };
-  } catch (error) {
-    console.error('PPTX analysis error:', error);
-    throw new Error(`Failed to analyze PowerPoint file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-async function generateFileSummary(content: string, fileName: string, fileType: string): Promise<{ summary: string; keyPoints: string[] }> {
+/* ─── File Analysis Functions ────────────────────────────────────────────── */
+async function generateFileSummary(
+  content: string,
+  fileName: string,
+  fileType: string
+): Promise<{ summary: string; keyPoints: string[] }> {
   if (!isAPIKeyConfigured || content.length < 100) {
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20);
     const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 2 ? '.' : '');
-    const keyPoints = sentences.slice(0, 4).map(s => s.trim().substring(0, 100));
-    return { 
-      summary: summary || `This ${fileType.toUpperCase()} file contains information about ${fileName.replace(/\.[^/.]+$/, '')}.`, 
-      keyPoints: keyPoints.length ? keyPoints : ['Content analysis requires AI API configuration.'] 
+    const keyPoints = sentences.slice(0, 4).map((s) => s.trim().substring(0, 100));
+    return {
+      summary: summary || `This ${fileType.toUpperCase()} file contains information.`,
+      keyPoints: keyPoints.length ? keyPoints : ['Content analysis requires API configuration.'],
     };
   }
-  
+
   try {
     const response = await fetch(GROQ_API_URL, {
       method: 'POST',
@@ -264,10 +184,10 @@ async function generateFileSummary(content: string, fileName: string, fileType: 
           {
             role: 'system',
             content: `You are a file analysis assistant. Analyze the provided ${fileType.toUpperCase()} file content and return a JSON object with:
-1. "summary": A concise 2-3 sentence summary of the main content
-2. "keyPoints": An array of 3-5 key points or main ideas from the document
+1. "summary": A concise 2-3 sentence summary
+2. "keyPoints": An array of 3-5 key points
 
-Format your response as valid JSON only. No other text.`,
+Format your response as valid JSON only.`,
           },
           {
             role: 'user',
@@ -278,39 +198,126 @@ Format your response as valid JSON only. No other text.`,
         max_tokens: 500,
       }),
     });
-    
+
     if (!response.ok) throw new Error('API request failed');
-    
+
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
-    
+
     let parsed;
     try {
       parsed = JSON.parse(aiResponse);
     } catch {
-      const lines = aiResponse.split('\n').filter(l => l.trim());
+      const lines = aiResponse.split('\n').filter((l) => l.trim());
       return {
         summary: lines[0] || 'Unable to generate summary.',
-        keyPoints: lines.slice(1, 5).map(l => l.replace(/^\d+\.\s*/, '').substring(0, 100)),
+        keyPoints: lines.slice(1, 5).map((l) => l.replace(/^\d+\.\s*/, '').substring(0, 100)),
       };
     }
-    
+
     return {
       summary: parsed.summary || 'Unable to generate summary.',
       keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.slice(0, 5) : ['No key points extracted.'],
     };
   } catch (error) {
     console.error('Summary generation error:', error);
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20);
     const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 2 ? '.' : '');
-    const keyPoints = sentences.slice(0, 4).map(s => s.trim().substring(0, 100));
-    return { summary: summary || 'Content analysis temporarily unavailable.', keyPoints: keyPoints.length ? keyPoints : ['Please try again.'] };
+    const keyPoints = sentences.slice(0, 4).map((s) => s.trim().substring(0, 100));
+    return {
+      summary: summary || 'Content analysis temporarily unavailable.',
+      keyPoints: keyPoints.length ? keyPoints : ['Please try again.'],
+    };
+  }
+}
+
+async function analyzePDF(file: File): Promise<FileAnalysisResult> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pageCount = pdf.numPages;
+    const maxPages = Math.min(pageCount, 10);
+    const fullTexts: string[] = [];
+
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      if (pageText.trim()) {
+        fullTexts.push(pageText);
+      }
+    }
+
+    const fullText = fullTexts.join('\n\n').substring(0, 8000);
+    const analysis = await generateFileSummary(fullText, file.name, 'pdf');
+
+    return {
+      fileName: file.name,
+      fileType: 'pdf',
+      fullText,
+      summary: analysis.summary,
+      keyPoints: analysis.keyPoints,
+      pageCount,
+    };
+  } catch (error) {
+    throw new Error(`Failed to analyze PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+async function analyzeTXT(file: File): Promise<FileAnalysisResult> {
+  try {
+    const text = await file.text();
+    const fullText = text.substring(0, 8000);
+    const analysis = await generateFileSummary(fullText, file.name, 'txt');
+
+    return {
+      fileName: file.name,
+      fileType: 'txt',
+      fullText,
+      summary: analysis.summary,
+      keyPoints: analysis.keyPoints,
+    };
+  } catch (error) {
+    throw new Error(`Failed to analyze text file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+async function analyzePPTX(file: File): Promise<FileAnalysisResult> {
+  try {
+    const fileName = file.name;
+    const fileSize = file.size;
+
+    let extractedText = '';
+    try {
+      const text = await file.text();
+      const textMatches = text.match(/>([^<]{20,})</g);
+      if (textMatches) {
+        extractedText = textMatches.map((m) => m.slice(1, -1)).join(' ').substring(0, 4000);
+      }
+    } catch {
+      extractedText = '';
+    }
+
+    const fullText = extractedText || `[PowerPoint file: ${fileName}] - Size: ${formatFileSize(fileSize)}.`;
+    const analysis = await generateFileSummary(fullText, file.name, 'pptx');
+    const estimatedSlides = Math.max(1, Math.floor(fileSize / 50000));
+
+    return {
+      fileName: file.name,
+      fileType: 'pptx',
+      fullText,
+      summary: analysis.summary,
+      keyPoints: analysis.keyPoints,
+      slideCount: estimatedSlides,
+    };
+  } catch (error) {
+    throw new Error(`Failed to analyze PowerPoint file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 async function analyzeFile(file: File): Promise<FileAnalysisResult> {
   const fileType = file.name.split('.').pop()?.toLowerCase() || '';
-  
+
   switch (fileType) {
     case 'pdf':
       return await analyzePDF(file);
@@ -330,9 +337,103 @@ async function buildRAGContext(userMessage: string): Promise<{ contextBlock: str
   return { contextBlock: '', sources };
 }
 
-/* ─── Components ──────────────────────────────────────────────────────────── */
+/* ─── API Call ───────────────────────────────────────────────────────────── */
+async function callGroqAPI(
+  userMessage: string,
+  chatHistory: Message[],
+  ragContext: string,
+  ragSources: Source[],
+  fileAnalysis?: FileAnalysisResult
+): Promise<{ text: string; sources: Source[] }> {
+  const sourcesList = ragSources.map((s, i) => `${i + 1}. [${s.name}](${s.url})`).join('\n');
 
-function RenderTextWithLinks({ text }: { text: string }) {
+  let fileContext = '';
+  if (fileAnalysis) {
+    fileContext = `
+**UPLOADED FILE ANALYSIS:**
+- File: ${fileAnalysis.fileName}
+- Type: ${fileAnalysis.fileType.toUpperCase()}
+${fileAnalysis.pageCount ? `- Pages: ${fileAnalysis.pageCount}` : ''}
+${fileAnalysis.slideCount ? `- Slides: ${fileAnalysis.slideCount}` : ''}
+- Summary: ${fileAnalysis.summary}
+- Key Points: ${fileAnalysis.keyPoints.join(', ')}`;
+  }
+
+  const systemPrompt = `You are Sphere, an academic CS assistant.
+
+**VERIFIED SOURCES YOU CAN CITE:**
+${sourcesList || 'No specific sources provided'}
+
+${fileContext}
+
+**RULES:**
+1. Include at least 2 citations using the sources above
+2. Use format: [Source Name](URL)
+3. DO NOT add a "References" section
+4. If a file was uploaded, prioritize answering from its content
+
+**FORMAT:** Provide a clear, educational answer with 2-3 inline citations.`;
+
+  const conversationMessages = [
+    { role: 'system', content: systemPrompt },
+    ...chatHistory.slice(-6).map((m) => ({
+      role: m.type === 'user' ? 'user' : 'assistant',
+      content: m.text,
+    })),
+  ];
+
+  const finalUserMessage = userMessage || (fileAnalysis ? 'Please analyze this file.' : 'What would you like to know?');
+  conversationMessages.push({ role: 'user', content: finalUserMessage });
+
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: conversationMessages,
+        temperature: 0.3,
+        max_tokens: 1000,
+      }),
+    });
+
+    if (!response.ok) throw new Error('API Error');
+
+    const data = await response.json();
+    let rawText = data.choices[0].message.content;
+    rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
+
+    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+    const citedSources: Source[] = [];
+    let match;
+
+    while ((match = linkRegex.exec(rawText)) !== null) {
+      const matchingSource = ragSources.find((s) => s.url === match[2] || s.name === match[1]);
+      if (matchingSource && matchingSource.verified) {
+        if (!citedSources.find((s) => s.url === matchingSource.url)) {
+          citedSources.push(matchingSource);
+        }
+      }
+    }
+
+    let finalSources = citedSources;
+    if (finalSources.length < 2 && ragSources.length > 0) {
+      const unusedSources = ragSources.filter((s) => !citedSources.find((c) => c.url === s.url));
+      finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
+    }
+
+    finalSources = finalSources.slice(0, 5);
+    const cleanText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
+
+    return { text: cleanText, sources: finalSources };
+  } catch (error) {
+    console.error('API call error:', error);
+    throw error;
+  }
+}
+
+/* ─── Components ─────────────────────────────────────────────────────────── */
+const RenderTextWithLinks: React.FC<{ text: string }> = ({ text }) => {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -362,50 +463,44 @@ function RenderTextWithLinks({ text }: { text: string }) {
   }
 
   return <>{parts}</>;
-}
+};
 
 const FileAnalysisDisplay: React.FC<{ analysis: FileAnalysisResult }> = ({ analysis }) => {
   const [expanded, setExpanded] = React.useState(false);
-  
+
   const getFileIcon = () => {
     switch (analysis.fileType) {
-      case 'pdf': return <FileText className="w-4 h-4 text-red-600" />;
-      case 'txt': return <File className="w-4 h-4 text-blue-600" />;
-      case 'pptx': return <File className="w-4 h-4 text-orange-600" />;
-      default: return <FileText className="w-4 h-4 text-gray-600" />;
+      case 'pdf':
+        return <FileText className="w-4 h-4 text-red-600" />;
+      case 'txt':
+        return <File className="w-4 h-4 text-blue-600" />;
+      case 'pptx':
+        return <File className="w-4 h-4 text-orange-600" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-600" />;
     }
   };
-  
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200"
-    >
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         {getFileIcon()}
         <span className="text-xs font-semibold text-blue-900">File Analysis: {analysis.fileName}</span>
-        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-700">
-          {analysis.fileType.toUpperCase()}
-        </span>
+        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-700">{analysis.fileType.toUpperCase()}</span>
         {analysis.pageCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
-            {analysis.pageCount} pages
-          </span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{analysis.pageCount} pages</span>
         )}
         {analysis.slideCount && (
-          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
-            ~{analysis.slideCount} slides
-          </span>
+          <span className="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">~{analysis.slideCount} slides</span>
         )}
       </div>
-      
+
       <div className="space-y-2">
         <div>
           <span className="text-xs font-medium text-blue-800">Summary:</span>
           <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">{analysis.summary}</p>
         </div>
-        
+
         {analysis.keyPoints.length > 0 && (
           <div>
             <span className="text-xs font-medium text-blue-800">Key Points:</span>
@@ -443,9 +538,7 @@ const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index
     <span className="font-mono text-green-600 font-bold">[{index}]</span>
     <span className="truncate max-w-[200px]">{source.name}</span>
     {source.courseCode && source.courseCode !== 'CS' && (
-      <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded">
-        {source.courseCode}
-      </span>
+      <span className="font-mono text-green-500 text-[10px] px-1 py-0.5 bg-green-100 rounded">{source.courseCode}</span>
     )}
     <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100" />
   </a>
@@ -478,22 +571,26 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
       animate={{ opacity: 1, y: 0 }}
       className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
     >
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-        isUser ? 'bg-primary/15' : 'bg-primary/10'
-      }`}>
+      <div
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+          isUser ? 'bg-primary/15' : 'bg-primary/10'
+        }`}
+      >
         {isUser ? <User className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
       </div>
 
       <div className={`flex flex-col gap-2 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
-        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-          isUser ? 'bg-primary text-white rounded-br-sm' : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
-        }`}>
+        <div
+          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+            isUser
+              ? 'bg-primary text-white rounded-br-sm'
+              : 'bg-white text-gray-700 rounded-bl-sm border shadow-sm'
+          }`}
+        >
           {isUser ? msg.text : <RenderTextWithLinks text={msg.text} />}
         </div>
 
-        {hasFileAnalysis && msg.fileAnalysis && (
-          <FileAnalysisDisplay analysis={msg.fileAnalysis} />
-        )}
+        {hasFileAnalysis && msg.fileAnalysis && <FileAnalysisDisplay analysis={msg.fileAnalysis} />}
 
         {hasSources && (
           <div className="mt-2 pt-2 border-t border-gray-200 w-full">
@@ -548,105 +645,7 @@ const SessionItem: React.FC<{
   </div>
 );
 
-/* ─── API Call ────────────────────────────────────────────────────────────── */
-
-async function callGroqAPI(
-  userMessage: string,
-  chatHistory: Message[],
-  ragContext: string,
-  ragSources: Source[],
-  fileAnalysis?: FileAnalysisResult
-): Promise<{ text: string; sources: Source[] }> {
-  const sourcesList = ragSources.map((s, i) => `${i+1}. [${s.name}](${s.url})`).join('\n');
-  
-  let fileContext = '';
-  if (fileAnalysis) {
-    fileContext = `
-**UPLOADED FILE ANALYSIS:**
-- File: ${fileAnalysis.fileName}
-- Type: ${fileAnalysis.fileType.toUpperCase()}
-${fileAnalysis.pageCount ? `- Pages: ${fileAnalysis.pageCount}` : ''}
-${fileAnalysis.slideCount ? `- Slides: ${fileAnalysis.slideCount}` : ''}
-- Summary: ${fileAnalysis.summary}
-- Key Points: ${fileAnalysis.keyPoints.join(', ')}
-- Content: ${fileAnalysis.fullText.substring(0, 2000)}`;
-  }
-
-  const systemPrompt = `You are Sphere, an academic CS assistant.
-
-**VERIFIED SOURCES YOU CAN CITE:**
-${sourcesList || "No specific sources provided"}
-
-${fileContext}
-
-**RULES:**
-1. Include at least 2 citations using the sources above
-2. Use format: [Source Name](URL)
-3. DO NOT add a "References" section
-4. If a file was uploaded, prioritize answering from its content
-
-**FORMAT:** Provide a clear, educational answer with 2-3 inline citations.`;
-
-  const conversationMessages = [
-    { role: 'system', content: systemPrompt },
-    ...chatHistory.slice(-6).map(m => ({
-      role: m.type === 'user' ? 'user' : 'assistant',
-      content: m.text,
-    })),
-  ];
-
-  const finalUserMessage = userMessage || (fileAnalysis ? "Please analyze this file." : "What would you like to know?");
-  conversationMessages.push({ role: 'user', content: finalUserMessage });
-
-  try {
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: conversationMessages,
-        temperature: 0.3,
-        max_tokens: 1000,
-      }),
-    });
-
-    if (!response.ok) throw new Error('API Error');
-
-    const data = await response.json();
-    let rawText = data.choices[0].message.content;
-    rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
-
-    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
-    const citedSources: Source[] = [];
-    let match;
-    
-    while ((match = linkRegex.exec(rawText)) !== null) {
-      const matchingSource = ragSources.find(s => s.url === match[2] || s.name === match[1]);
-      if (matchingSource && matchingSource.verified) {
-        if (!citedSources.find(s => s.url === matchingSource.url)) {
-          citedSources.push(matchingSource);
-        }
-      }
-    }
-    
-    let finalSources = citedSources;
-    if (finalSources.length < 2 && ragSources.length > 0) {
-      const unusedSources = ragSources.filter(s => !citedSources.find(c => c.url === s.url));
-      finalSources = [...finalSources, ...unusedSources.slice(0, 2 - finalSources.length)];
-    }
-    
-    finalSources = finalSources.slice(0, 5);
-    const cleanText = rawText.replace(/##\s*References[\s\S]*$/i, '').replace(/References:[\s\S]*$/i, '').trim();
-
-    return { text: cleanText, sources: finalSources };
-  } catch (error) {
-    console.error('API call error:', error);
-    throw error;
-  }
-}
-
 /* ─── Main Component ─────────────────────────────────────────────────────── */
-
 export function AIChatSection() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -667,14 +666,19 @@ export function AIChatSection() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadAllData(); }, []);
-  
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
   useEffect(() => {
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
   }, []);
 
   useEffect(() => {
@@ -683,9 +687,9 @@ export function AIChatSection() {
 
   const loadAllData = () => {
     try {
-      const savedSessions = localStorage.getItem('sphere_sessions_v6');
+      const savedSessions = localStorage.getItem('sphere_sessions_v7');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
-      const savedCurrent = localStorage.getItem('sphere_current_v6');
+      const savedCurrent = localStorage.getItem('sphere_current_v7');
       if (savedCurrent) {
         const current = JSON.parse(savedCurrent);
         setMessages(current.messages);
@@ -693,7 +697,9 @@ export function AIChatSection() {
       } else {
         createNewSession();
       }
-    } catch { createNewSession(); }
+    } catch {
+      createNewSession();
+    }
   };
 
   const createNewSession = () => {
@@ -713,78 +719,78 @@ export function AIChatSection() {
     };
     setMessages([welcome]);
     setCurrentSessionId(newId);
-    setSessions(prev => {
+    setSessions((prev) => {
       const updated = [newSession, ...prev];
-      localStorage.setItem('sphere_sessions_v6', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v6', JSON.stringify({ id: newId, messages: [welcome] }));
+    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: newId, messages: [welcome] }));
   };
 
   const saveCurrentMessages = (updatedMessages: Message[], sessionId = currentSessionId) => {
     if (!sessionId) return;
-    setSessions(prev => {
-      const idx = prev.findIndex(s => s.id === sessionId);
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId);
       const updated = [...prev];
       if (idx !== -1) {
         updated[idx] = { ...updated[idx], messages: updatedMessages, lastModified: Date.now() };
       }
-      localStorage.setItem('sphere_sessions_v6', JSON.stringify(updated));
+      localStorage.setItem('sphere_sessions_v7', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('sphere_current_v6', JSON.stringify({ id: sessionId, messages: updatedMessages }));
+    localStorage.setItem('sphere_current_v7', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    
+
     const validFiles: PendingFile[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const fileType = file.name.split('.').pop()?.toLowerCase() || '';
-      
+
       if (!['pdf', 'txt', 'pptx', 'ppt'].includes(fileType)) {
         setError(`"${file.name}" is not supported. Please upload PDF, TXT, or PPTX files.`);
         setTimeout(() => setError(null), 4000);
         continue;
       }
-      
+
       if (file.size > 20 * 1024 * 1024) {
         setError(`"${file.name}" exceeds 20 MB limit.`);
         setTimeout(() => setError(null), 4000);
         continue;
       }
-      
+
       validFiles.push({ file, name: file.name, size: file.size, type: fileType });
     }
-    
+
     if (validFiles.length > 0) {
-      setPendingFiles(prev => [...prev, ...validFiles]);
+      setPendingFiles((prev) => [...prev, ...validFiles]);
     }
-    
+
     if (fileInputRef.current) fileInputRef.current.value = '';
     setShowFileUpload(false);
   };
 
   const processFiles = async (files: PendingFile[]): Promise<FileAnalysisResult | null> => {
     if (files.length === 0) return null;
-    
+
     const file = files[0];
     setAnalyzingFile(file.name);
     setUploadProgress(0);
-    
+
     try {
       const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
+        setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 200);
-      
+
       const analysis = await analyzeFile(file.file);
-      
+
       clearInterval(progressInterval);
       setUploadProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       return analysis;
     } catch (error) {
       console.error('File processing error:', error);
@@ -801,13 +807,11 @@ export function AIChatSection() {
 
     const userCaption = inputValue.trim();
     const hasFiles = pendingFiles.length > 0;
-    
+
     let messageText = userCaption;
     if (hasFiles) {
-      const fileNames = pendingFiles.map(f => f.name).join(', ');
-      messageText = userCaption 
-        ? `[Uploaded: ${fileNames}]\n\n${userCaption}`
-        : `[Uploaded: ${fileNames}]\n\nPlease analyze these files and provide key insights.`;
+      const fileNames = pendingFiles.map((f) => f.name).join(', ');
+      messageText = userCaption ? `[Uploaded: ${fileNames}]\n\n${userCaption}` : `[Uploaded: ${fileNames}]\n\nPlease analyze these files and provide key insights.`;
     }
 
     const newUserMsg: Message = {
@@ -816,7 +820,7 @@ export function AIChatSection() {
       text: messageText,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
-    
+
     const updatedMessages = [...messages, newUserMsg];
     setMessages(updatedMessages);
     saveCurrentMessages(updatedMessages);
@@ -830,7 +834,9 @@ export function AIChatSection() {
       const offlineMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: !isOnline ? "I'm offline. Please connect to the internet for file analysis and academic citations." : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
+        text: !isOnline
+          ? "I'm offline. Please connect to the internet for file analysis and academic citations."
+          : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       const final = [...updatedMessages, offlineMsg];
@@ -844,7 +850,7 @@ export function AIChatSection() {
       const { contextBlock, sources: ragSources } = await buildRAGContext(userCaption);
       setIsSearching(false);
       setIsTyping(true);
-      
+
       let fileAnalysis: FileAnalysisResult | null = null;
       if (filesToProcess.length > 0) {
         setIsProcessingFile(true);
@@ -853,7 +859,11 @@ export function AIChatSection() {
       }
 
       const { text: aiText, sources: finalSources } = await callGroqAPI(
-        userCaption, updatedMessages, contextBlock, ragSources, fileAnalysis || undefined
+        userCaption,
+        updatedMessages,
+        contextBlock,
+        ragSources,
+        fileAnalysis || undefined
       );
 
       const aiMsg: Message = {
@@ -864,7 +874,7 @@ export function AIChatSection() {
         sources: finalSources.length > 0 ? finalSources : undefined,
         fileAnalysis: fileAnalysis || undefined,
       };
-      
+
       const final = [...updatedMessages, aiMsg];
       setMessages(final);
       saveCurrentMessages(final);
@@ -887,23 +897,28 @@ export function AIChatSection() {
     }
   };
 
-  const clearChat = () => { if (confirm('Start a new chat?')) createNewSession(); };
+  const clearChat = () => {
+    if (confirm('Start a new chat?')) createNewSession();
+  };
+
   const switchSession = (id: string) => {
-    const session = sessions.find(s => s.id === id);
+    const session = sessions.find((s) => s.id === id);
     if (session) {
       setMessages(session.messages);
       setCurrentSessionId(id);
       setShowHistory(false);
     }
   };
+
   const deleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('Delete this chat?')) return;
-    setSessions(prev => prev.filter(s => s.id !== id));
+    setSessions((prev) => prev.filter((s) => s.id !== id));
     if (currentSessionId === id) createNewSession();
   };
+
   const exportChat = () => {
-    const session = sessions.find(s => s.id === currentSessionId);
+    const session = sessions.find((s) => s.id === currentSessionId);
     if (!session) return;
     const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -919,7 +934,6 @@ export function AIChatSection() {
   return (
     <section className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl flex gap-4 h-[85vh]">
-        
         <AnimatePresence>
           {showHistory && (
             <motion.aside
@@ -936,7 +950,10 @@ export function AIChatSection() {
                   </button>
                 </div>
                 <button
-                  onClick={() => { createNewSession(); setShowHistory(false); }}
+                  onClick={() => {
+                    createNewSession();
+                    setShowHistory(false);
+                  }}
                   className="w-full py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-accent transition-colors"
                 >
                   + New Chat
@@ -946,7 +963,7 @@ export function AIChatSection() {
                 {sessions.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-8">No previous chats</p>
                 ) : (
-                  sessions.map(session => (
+                  sessions.map((session) => (
                     <SessionItem
                       key={session.id}
                       session={session}
@@ -968,7 +985,11 @@ export function AIChatSection() {
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Bot className="w-5 h-5 text-primary" />
                 </div>
-                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${statusOnline ? 'bg-green-400' : 'bg-gray-300'}`} />
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                    statusOnline ? 'bg-green-400' : 'bg-gray-300'
+                  }`}
+                />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -984,7 +1005,7 @@ export function AIChatSection() {
               </div>
             </div>
             <div className="flex gap-1">
-              <button onClick={() => setShowHistory(v => !v)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <button onClick={() => setShowHistory((v) => !v)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
                 <Menu className="w-4 h-4" />
               </button>
               <button onClick={exportChat} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -1018,17 +1039,15 @@ export function AIChatSection() {
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                   <FileUp className="w-8 h-8 text-primary/60" />
                 </div>
-                <p className="text-gray-500 text-sm max-w-md">
-                  Upload PDF, TXT, or PPTX files for analysis, or ask about CS topics.
-                </p>
+                <p className="text-gray-500 text-sm max-w-md">Upload PDF, TXT, or PPTX files for analysis, or ask about CS topics.</p>
                 <div className="flex gap-2 mt-4 flex-wrap justify-center">
-                  <button 
-                    onClick={() => setInputValue("What is data mining?")}
+                  <button
+                    onClick={() => setInputValue('What is data mining?')}
                     className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs hover:bg-gray-200 transition-colors"
                   >
                     What is data mining?
                   </button>
-                  <button 
+                  <button
                     onClick={() => setShowFileUpload(true)}
                     className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs hover:bg-primary/20 transition-colors"
                   >
@@ -1037,9 +1056,9 @@ export function AIChatSection() {
                 </div>
               </div>
             ) : (
-              messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)
+              messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)
             )}
-            
+
             {isSearching && !isTyping && !isProcessingFile && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1050,7 +1069,7 @@ export function AIChatSection() {
                 </div>
               </div>
             )}
-            
+
             {isProcessingFile && analyzingFile && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
@@ -1063,16 +1082,13 @@ export function AIChatSection() {
                       <span className="text-xs text-gray-600">Analyzing {analyzingFile}...</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
+                      <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                     </div>
                   </div>
                 </div>
               </div>
             )}
-            
+
             {isTyping && !isProcessingFile && !isSearching && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1083,7 +1099,7 @@ export function AIChatSection() {
                 </div>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -1104,7 +1120,7 @@ export function AIChatSection() {
                         {file.type === 'pptx' && <File className="w-3 h-3" />}
                         <span className="max-w-[150px] truncate">{file.name}</span>
                         <span className="text-gray-400 text-[10px]">({formatFileSize(file.size)})</span>
-                        <button onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1">
+                        <button onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} className="ml-1">
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -1180,11 +1196,13 @@ export function AIChatSection() {
 
             <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-2">
               <CheckCircle className="w-3 h-3 text-green-500" />
-              {statusOnline ? 'Upload PDF, TXT, or PPTX for instant analysis with academic citations' : 'Configure API key for file analysis'}
+              {statusOnline
+                ? 'Upload PDF, TXT, or PPTX for instant analysis with academic citations'
+                : 'Configure API key for file analysis'}
             </p>
           </div>
         </div>
       </div>
-    </motion.div>
+    </section>
   );
 }
