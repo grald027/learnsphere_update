@@ -18,7 +18,6 @@ interface Source {
   courseCode: string;
   type: string;
   isReliable?: boolean;
-  reliabilityScore?: number;
 }
 
 interface Message {
@@ -28,7 +27,6 @@ interface Message {
   time: string;
   timestamp?: number;
   sources?: Source[];
-  hasReliableSources?: boolean;
 }
 
 interface ChatSession {
@@ -62,38 +60,21 @@ const isAPIKeyConfigured = GROQ_API_KEY && GROQ_API_KEY !== 'undefined' && GROQ_
 
 /* ─── Authoritative academic sources configuration ───────────────────────── */
 const AUTHORITATIVE_DOMAINS = [
-  { domain: 'arxiv.org', name: 'arXiv', reliability: 0.95, type: 'preprint' },
-  { domain: 'ieeexplore.ieee.org', name: 'IEEE Xplore', reliability: 0.98, type: 'academic' },
-  { domain: 'dl.acm.org', name: 'ACM Digital Library', reliability: 0.98, type: 'academic' },
-  { domain: 'scholar.google.com', name: 'Google Scholar', reliability: 0.90, type: 'academic' },
-  { domain: 'springer.com', name: 'Springer', reliability: 0.97, type: 'academic' },
-  { domain: 'sciencedirect.com', name: 'ScienceDirect', reliability: 0.97, type: 'academic' },
-  { domain: 'mdpi.com', name: 'MDPI', reliability: 0.85, type: 'open-access' },
-  { domain: 'mit.edu', name: 'MIT', reliability: 0.99, type: 'educational' },
-  { domain: 'stanford.edu', name: 'Stanford', reliability: 0.99, type: 'educational' },
-  { domain: 'berkeley.edu', name: 'UC Berkeley', reliability: 0.99, type: 'educational' },
-  { domain: 'cmu.edu', name: 'Carnegie Mellon', reliability: 0.99, type: 'educational' },
-  { domain: 'ox.ac.uk', name: 'Oxford', reliability: 0.99, type: 'educational' },
-  { domain: 'cam.ac.uk', name: 'Cambridge', reliability: 0.99, type: 'educational' },
-  { domain: 'github.com', name: 'GitHub', reliability: 0.70, type: 'repository' },
-  { domain: 'stackoverflow.com', name: 'Stack Overflow', reliability: 0.65, type: 'community' },
-  { domain: 'medium.com', name: 'Medium', reliability: 0.50, type: 'blog' },
-  { domain: 'dev.to', name: 'DEV Community', reliability: 0.55, type: 'blog' },
-];
-
-const RELIABLE_CS_RESOURCES = [
-  { pattern: /w3schools/i, reliability: 0.60, name: 'W3Schools', type: 'tutorial' },
-  { pattern: /geeksforgeeks/i, reliability: 0.65, name: 'GeeksforGeeks', type: 'tutorial' },
-  { pattern: /tutorialspoint/i, reliability: 0.60, name: 'TutorialsPoint', type: 'tutorial' },
-  { pattern: /freecodecamp/i, reliability: 0.75, name: 'freeCodeCamp', type: 'tutorial' },
-  { pattern: /developer\.mozilla\.org/i, reliability: 0.90, name: 'MDN Web Docs', type: 'documentation' },
-  { pattern: /docs\.python\.org/i, reliability: 0.95, name: 'Python Docs', type: 'documentation' },
-  { pattern: /nodejs\.org/i, reliability: 0.90, name: 'Node.js Docs', type: 'documentation' },
-  { pattern: /reactjs\.org/i, reliability: 0.90, name: 'React Docs', type: 'documentation' },
-  { pattern: /angular\.io/i, reliability: 0.90, name: 'Angular Docs', type: 'documentation' },
-  { pattern: /vuejs\.org/i, reliability: 0.90, name: 'Vue.js Docs', type: 'documentation' },
-  { pattern: /docker\.com/i, reliability: 0.85, name: 'Docker Docs', type: 'documentation' },
-  { pattern: /kubernetes\.io/i, reliability: 0.85, name: 'Kubernetes Docs', type: 'documentation' },
+  { domain: 'arxiv.org', name: 'arXiv', type: 'preprint' },
+  { domain: 'ieeexplore.ieee.org', name: 'IEEE Xplore', type: 'academic' },
+  { domain: 'dl.acm.org', name: 'ACM Digital Library', type: 'academic' },
+  { domain: 'scholar.google.com', name: 'Google Scholar', type: 'academic' },
+  { domain: 'springer.com', name: 'Springer', type: 'academic' },
+  { domain: 'sciencedirect.com', name: 'ScienceDirect', type: 'academic' },
+  { domain: 'mit.edu', name: 'MIT', type: 'educational' },
+  { domain: 'stanford.edu', name: 'Stanford', type: 'educational' },
+  { domain: 'berkeley.edu', name: 'UC Berkeley', type: 'educational' },
+  { domain: 'cmu.edu', name: 'Carnegie Mellon', type: 'educational' },
+  { domain: 'ox.ac.uk', name: 'Oxford', type: 'educational' },
+  { domain: 'developer.mozilla.org', name: 'MDN Web Docs', type: 'documentation' },
+  { domain: 'docs.python.org', name: 'Python Docs', type: 'documentation' },
+  { domain: 'nodejs.org', name: 'Node.js Docs', type: 'documentation' },
+  { domain: 'reactjs.org', name: 'React Docs', type: 'documentation' },
 ];
 
 /* ─── Course keyword map for RAG course detection ────────────────────────── */
@@ -109,54 +90,27 @@ const COURSE_KEYWORDS: Record<string, string[]> = {
 };
 
 /* ─── Function to evaluate source reliability ───────────────────────────── */
-function evaluateSourceReliability(url: string, name: string): { isReliable: boolean; score: number; type: string; label: string } {
+function isReliableSource(url: string): boolean {
   const urlLower = url.toLowerCase();
-  const nameLower = name.toLowerCase();
   
-  // Check authoritative domains first
+  // Explicitly block Wikipedia
+  if (urlLower.includes('wikipedia.org') || urlLower.includes('wikia.com') || urlLower.includes('fandom.com')) {
+    return false;
+  }
+  
+  // Check authoritative domains
   for (const domain of AUTHORITATIVE_DOMAINS) {
     if (urlLower.includes(domain.domain)) {
-      return { 
-        isReliable: domain.reliability >= 0.70, 
-        score: domain.reliability, 
-        type: domain.type,
-        label: domain.name
-      };
+      return true;
     }
   }
   
-  // Check reliable CS resources
-  for (const resource of RELIABLE_CS_RESOURCES) {
-    if (resource.pattern.test(urlLower) || resource.pattern.test(nameLower)) {
-      return { 
-        isReliable: resource.reliability >= 0.70, 
-        score: resource.reliability, 
-        type: resource.type,
-        label: resource.name
-      };
-    }
-  }
-  
-  // Check for Wikipedia - explicitly mark as unreliable
-  if (urlLower.includes('wikipedia.org') || urlLower.includes('wikimedia.org')) {
-    return { isReliable: false, score: 0.30, type: 'wiki', label: 'Wikipedia' };
-  }
-  
-  // Educational domains (.edu) are generally reliable
+  // Educational domains are reliable
   if (urlLower.includes('.edu')) {
-    return { isReliable: true, score: 0.85, type: 'educational', label: 'Educational Institution' };
+    return true;
   }
   
-  // .org domains vary - check for known reliable orgs
-  if (urlLower.includes('.org')) {
-    if (urlLower.includes('acm.org') || urlLower.includes('ieee.org')) {
-      return { isReliable: true, score: 0.95, type: 'professional', label: 'Professional Organization' };
-    }
-    return { isReliable: false, score: 0.55, type: 'organization', label: 'Organization' };
-  }
-  
-  // Default - not verified as reliable
-  return { isReliable: false, score: 0.40, type: 'unknown', label: 'External Source' };
+  return false;
 }
 
 /* ─── RAG: detect relevant courses from the user message ─────────────────── */
@@ -231,7 +185,7 @@ async function buildRAGContext(
       const lower = f.name.toLowerCase();
       return lower.endsWith('.pdf') || lower.endsWith('.txt') || lower.endsWith('.md');
     })
-    .slice(0, 4);
+    .slice(0, 3);
 
   const sources: Source[] = [];
   const contextParts: string[] = [];
@@ -254,10 +208,9 @@ async function buildRAGContext(
           courseCode: file.courseCode,
           type: file.type || lower.split('.').pop() || 'file',
           isReliable: true,
-          reliabilityScore: 1.0,
         });
         contextParts.push(
-          `--- SOURCE: [${file.name}](${file.url}) | Course: ${file.courseCode} | RELIABILITY: HIGH (Course Material) ---\n${text}\n---`
+          `--- COURSE MATERIAL: ${file.name} (${file.courseCode}) ---\n${text}\n---`
         );
       }
     })
@@ -269,7 +222,7 @@ async function buildRAGContext(
   };
 }
 
-/* ─── Parse markdown links [text](url) from AI response ─────────────────── */
+/* ─── Parse markdown links from AI response ──────────────────────────────── */
 function parseSourcesFromText(text: string): Source[] {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const found: Source[] = [];
@@ -280,20 +233,23 @@ function parseSourcesFromText(text: string): Source[] {
     const courseCode = Object.keys(COURSE_KEYWORDS).find(
       (c) => url.includes(c) || name.toUpperCase().includes(c)
     ) || '';
-    const reliability = evaluateSourceReliability(url, name);
-    found.push({ 
-      name, 
-      url, 
-      courseCode, 
-      type: url.split('.').pop()?.split('?')[0] || 'link',
-      isReliable: reliability.isReliable,
-      reliabilityScore: reliability.score,
-    });
+    const reliable = isReliableSource(url);
+    
+    // Only include reliable sources, skip Wikipedia and unreliable ones
+    if (reliable) {
+      found.push({ 
+        name, 
+        url, 
+        courseCode, 
+        type: url.split('.').pop()?.split('?')[0] || 'link',
+        isReliable: true,
+      });
+    }
   }
   return found;
 }
 
-/* ─── Render text with inline clickable [text](url) links ───────────────── */
+/* ─── Render text with inline clickable links ───────────────────────────── */
 function RenderTextWithLinks({ text }: { text: string }) {
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
   const parts: React.ReactNode[] = [];
@@ -330,51 +286,27 @@ function RenderTextWithLinks({ text }: { text: string }) {
 }
 
 /* ─── Source card shown below AI messages ────────────────────────────────── */
-const SourceCard: React.FC<{ source: Source }> = ({ source }) => {
-  const ext = source.name.split('.').pop()?.toLowerCase() || '';
-  const isPDF = ext === 'pdf';
-  const isPPT = ext === 'pptx' || ext === 'ppt';
-  
-  const reliability = evaluateSourceReliability(source.url, source.name);
-  
-  const badgeColor = isPDF
-    ? 'bg-red-50 border-red-200 text-red-700'
-    : isPPT
-    ? 'bg-orange-50 border-orange-200 text-orange-700'
-    : reliability.isReliable
-    ? 'bg-green-50 border-green-200 text-green-700'
-    : 'bg-yellow-50 border-yellow-200 text-yellow-700';
-
+const SourceCard: React.FC<{ source: Source; index: number }> = ({ source, index }) => {
   return (
-    <div className="group relative">
-      <a
-        href={source.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all hover:shadow-sm hover:scale-[1.02] ${badgeColor}`}
-        title={`${source.name} - ${reliability.isReliable ? 'Reliable Source' : 'Verify Source'}`}
-      >
-        {reliability.isReliable ? (
-          <CheckCircle className="w-3 h-3 flex-shrink-0" />
-        ) : (
-          <AlertCircle className="w-3 h-3 flex-shrink-0" />
-        )}
-        <span className="truncate max-w-[160px]">{source.name}</span>
-        {source.courseCode && (
-          <span className="font-mono opacity-60">{source.courseCode}</span>
-        )}
-        <ExternalLink className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
-      </a>
-      <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-10">
-        <div className="bg-gray-900 text-white text-[10px] rounded-lg px-2 py-1 whitespace-nowrap">
-          {reliability.label} • Reliability: {(reliability.score * 100).toFixed(0)}%
-        </div>
-      </div>
-    </div>
+    <a
+      href={source.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all hover:shadow-sm bg-green-50 border-green-200 text-green-700"
+      title={source.name}
+    >
+      <CheckCircle className="w-3 h-3 flex-shrink-0" />
+      <span className="font-mono text-[10px] text-green-600">[{index}]</span>
+      <span className="truncate max-w-[140px]">{source.name}</span>
+      {source.courseCode && (
+        <span className="font-mono opacity-60 text-[10px]">{source.courseCode}</span>
+      )}
+      <ExternalLink className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
+    </a>
   );
 };
 
-/* ─── Typing / searching indicator ───────────────────────────────────────── */
+/* ─── Typing indicator ───────────────────────────────────────────────────── */
 const TypingDots = ({ label = '' }: { label?: string }) => (
   <div className="flex items-center gap-2 px-1 py-0.5">
     <div className="flex items-center gap-1">
@@ -395,8 +327,6 @@ const TypingDots = ({ label = '' }: { label?: string }) => (
 const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
   const isUser = msg.type === 'user';
   const hasSources = !isUser && msg.sources && msg.sources.length > 0;
-  const reliableCount = msg.sources?.filter(s => s.isReliable).length || 0;
-  const unreliableCount = (msg.sources?.length || 0) - reliableCount;
 
   return (
     <motion.div
@@ -434,31 +364,22 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
           )}
         </div>
 
-        {/* Source cards */}
+        {/* Source cards - organized at the bottom */}
         {hasSources && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="flex flex-col gap-1"
+            className="mt-2 pt-2 border-t border-gray-100"
           >
-            <div className="flex items-center gap-1 text-[10px] text-gray-400 px-1">
-              <BookOpen className="w-2.5 h-2.5" />
-              <span>Sources</span>
-              {reliableCount > 0 && (
-                <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
-                  {reliableCount} reliable
-                </span>
-              )}
-              {unreliableCount > 0 && (
-                <span className="text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded-full">
-                  {unreliableCount} verify
-                </span>
-              )}
+            <div className="flex items-center gap-1.5 mb-2">
+              <BookOpen className="w-3 h-3 text-green-600" />
+              <span className="text-[10px] font-semibold text-gray-500">REFERENCES</span>
+              <span className="text-[10px] text-green-600">({msg.sources!.length} sources)</span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {msg.sources!.map((src, i) => (
-                <SourceCard key={i} source={src} />
+            <div className="flex flex-wrap gap-2">
+              {msg.sources!.map((src, idx) => (
+                <SourceCard key={idx} source={src} index={idx + 1} />
               ))}
             </div>
           </motion.div>
@@ -512,7 +433,7 @@ const SessionItem: React.FC<{
   </div>
 );
 
-/* ─── Groq API call with RAG context ─────────────────────────────────────── */
+/* ─── Groq API call with RAG context and limited citations ───────────────── */
 async function callGroqAPI(
   userMessage: string,
   chatHistory: Message[],
@@ -522,61 +443,42 @@ async function callGroqAPI(
 ): Promise<{ text: string; sources: Source[] }> {
   const hasContext = ragContext.trim().length > 0;
 
-  const systemPrompt = `You are Sphere, an AI learning assistant for LearnSphere — a platform for computer science students.
+  const systemPrompt = `You are Sphere, an AI learning assistant for computer science students.
 
-**CRITICAL CITATION RULES (STRICTLY ENFORCED):**
+**CRITICAL CITATION RULES:**
+1. **MAXIMUM 5 SOURCES TOTAL** - Limit your citations to at most 5 reliable sources
+2. **NEVER cite Wikipedia** or any wiki-based sites
+3. **PRIORITIZE** course materials first, then academic sources
+4. **USE inline citations** with format: [Source Name](URL)
+5. **ADD references section** at the end with numbered list
 
-1. **ABSOLUTELY NO WIKIPEDIA CITATIONS** - Never cite Wikipedia or any wiki-based sources. These are considered unreliable for academic work.
+**CITATION STRUCTURE:**
+- In your answer, cite sources like this: [Author/Source Name](URL)
+- At the end, add "## References" with numbered list of all sources
+- Example: ## References\n1. [Source Name](URL) - Brief note on authority\n2. [Another Source](URL) - Brief note
 
-2. **PREFERRED SOURCES (in order of reliability):**
-   - Course materials and module files (MOST PREFERRED)
-   - Peer-reviewed academic papers (arXiv, IEEE, ACM, Springer, ScienceDirect)
-   - Official documentation (MDN, Python docs, React docs, etc.)
-   - University educational resources (.edu domains)
-   - Established tech blogs with high credibility (freeCodeCamp, CSS-Tricks, etc.)
+**RELIABLE SOURCES (in order):**
+- Course materials (most preferred)
+- Peer-reviewed papers (arXiv, IEEE, ACM, Springer)
+- Official documentation (MDN, Python docs, etc.)
+- University resources (.edu domains)
 
-3. **CITATION REQUIREMENTS:**
-   - You MUST cite at least 2-3 reliable sources for each substantive answer
-   - Use markdown format: [Source Name](URL)
-   - Place citations INLINE immediately after the relevant information
-   - Each claim should be traceable to a specific source
-
-4. **FORBIDDEN SOURCES:**
-   - Wikipedia, Fandom, Wikia, or any wiki-based sites
-   - Personal blogs without established credibility
-   - Unverified user-generated content platforms
-
-5. **WHEN NO COURSE MATERIALS ARE AVAILABLE:**
-   - Research and cite from authoritative external sources listed above
-   - Prefer academic papers and official documentation
-   - Indicate the reliability level of your sources
-
-6. **ADD A REFERENCES SECTION:**
-   At the end of your response, add a "## References" section listing all sources cited:
-   - Mark reliable sources with ✅
-   - Mark questionable sources with ⚠️
-   - Include brief notes on why each source is authoritative
+**RESPONSE FORMAT:**
+1. Answer the question concisely with inline citations [like this](url)
+2. Keep answer clear and educational
+3. End with "## References" section with max 5 numbered sources
+4. No bullet points in references - use numbered list only
 
 ${hasContext ? 
-`**COURSE MATERIALS AVAILABLE:**
-The following content has been retrieved from uploaded course module files. These are your PRIMARY and MOST RELIABLE sources:
+`**COURSE MATERIALS AVAILABLE (PRIORITIZE THESE):**
+${ragContext}` : 
+`**NO COURSE MATERIALS** - Use only reliable academic sources listed above.`}
 
-${ragContext}
-
-PRIORITIZE these course materials over any external sources when answering.` : 
-`**NO COURSE MATERIALS AVAILABLE:**
-No module files were found for this topic. Research using ONLY reliable academic and official sources listed above.`}
-
-**RESPONSE STYLE:**
-- Be concise, clear, and educational
-- Use bullet points with dashes for lists
-- Keep paragraphs short
-- Be friendly but academically rigorous
-- Always prioritize accuracy and verifiability over quantity`;
+Remember: MAXIMUM 5 CITATIONS TOTAL. Be selective and cite only the most relevant sources.`;
 
   const conversationMessages: { role: string; content: string }[] = [
     { role: 'system', content: systemPrompt },
-    ...chatHistory.slice(-8).map((m) => ({
+    ...chatHistory.slice(-6).map((m) => ({
       role: m.type === 'user' ? 'user' : 'assistant',
       content: m.text,
     })),
@@ -584,7 +486,7 @@ No module files were found for this topic. Research using ONLY reliable academic
 
   let finalUserMessage = userMessage;
   if (attachedFileContent) {
-    finalUserMessage = `The student uploaded a file:\n\n${attachedFileContent}\n\nQuestion: ${userMessage || 'Please analyze and explain the key concepts from this file.'}\n\nPlease provide detailed citations from reliable sources.`;
+    finalUserMessage = `The student uploaded a file:\n\n${attachedFileContent}\n\nQuestion: ${userMessage || 'Please explain the key concepts.'}\n\nProvide a concise answer with max 5 citations from reliable sources.`;
   }
   conversationMessages.push({ role: 'user', content: finalUserMessage });
 
@@ -598,8 +500,8 @@ No module files were found for this topic. Research using ONLY reliable academic
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: conversationMessages,
-        temperature: 0.3, // Lower temperature for more consistent, factual responses
-        max_tokens: 1500,
+        temperature: 0.3,
+        max_tokens: 1200,
       }),
     });
 
@@ -607,32 +509,22 @@ No module files were found for this topic. Research using ONLY reliable academic
 
     const data = await response.json();
     let rawText: string = data.choices[0].message.content;
-    
-    // Clean up markdown formatting
     rawText = rawText.replace(/\*\*/g, '').replace(/\n{3,}/g, '\n\n');
 
-    // Parse inline citation links from AI response
-    const inlineSources = parseSourcesFromText(rawText);
+    // Parse inline citations from AI response (only reliable ones)
+    let inlineSources = parseSourcesFromText(rawText);
     
-    // Filter out Wikipedia and other unreliable sources from citations
-    const filteredSources = inlineSources.filter(source => {
-      const urlLower = source.url.toLowerCase();
-      const isWikipedia = urlLower.includes('wikipedia.org') || urlLower.includes('wikia.com') || urlLower.includes('fandom.com');
-      if (isWikipedia) {
-        console.warn(`Filtered out Wikipedia source: ${source.url}`);
-        return false;
-      }
-      return true;
-    });
-
-    // Merge with RAG sources (deduplicate by URL)
-    const allSourceUrls = new Set(filteredSources.map((s) => s.url));
+    // Limit to 5 sources total
+    inlineSources = inlineSources.slice(0, 5);
+    
+    // Merge with RAG sources (course materials) but limit total to 5
+    const allSourceUrls = new Set(inlineSources.map((s) => s.url));
     const extraSources = ragSources.filter((s) => !allSourceUrls.has(s.url));
-    const finalSources = [...filteredSources, ...extraSources];
+    let finalSources = [...inlineSources, ...extraSources].slice(0, 5);
 
-    // If no reliable sources were cited, add a note
+    // If no sources were cited, add a note
     if (finalSources.length === 0 && !hasContext) {
-      rawText += "\n\n---\n⚠️ **Note:** No specific reliable sources could be cited for this response. Please verify this information with official documentation or academic papers.";
+      rawText += "\n\n## References\n*No specific reliable sources could be cited for this response. Please verify this information with official documentation or academic papers.*";
     }
 
     return { text: rawText, sources: finalSources };
@@ -642,7 +534,7 @@ No module files were found for this topic. Research using ONLY reliable academic
   }
 }
 
-/* ─── File text extraction (for user-attached files in chat) ─────────────── */
+/* ─── File text extraction ───────────────────────────────────────────────── */
 async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.txt') || name.endsWith('.md') || file.type === 'text/plain') {
@@ -691,7 +583,6 @@ export function AIChatSection() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }, [messages, isTyping, isSearching]);
 
-  /* ── Persistence ── */
   const loadAllData = () => {
     try {
       const savedSessions = localStorage.getItem('learnsphere_chat_sessions');
@@ -711,10 +602,9 @@ export function AIChatSection() {
     const welcome: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      text: "Hello! I'm Sphere, your AI learning assistant.\n\nI have access to your course module files and will cite them directly in my responses. I prioritize **reliable, authoritative sources** and avoid Wikipedia.\n\nAsk me anything about:\n\n- **CS321** – Programming Languages\n- **CS322** – Software Engineering  \n- **CS323** – Ethics in Computing\n- **CS324** – Computer Graphics\n- **CS325** – Mobile Development\n- **CS326** – Modeling & Simulation\n- **CS327** – Data Mining\n- **CS328** – Machine Learning\n\n**My citations come from:**\n✅ Course materials (most reliable)\n✅ Academic papers (arXiv, IEEE, ACM)\n✅ Official documentation (MDN, language docs)\n✅ University educational resources\n\n❌ I never cite Wikipedia or unreliable sources.\n\nWhat would you like to learn today? I'll provide properly cited, academically sound answers.",
+      text: "Hello! I'm Sphere, your AI learning assistant.\n\nI provide concise answers with **up to 5 reliable citations** from course materials and academic sources. I never cite Wikipedia.\n\n**What I can help with:**\n• CS321-328 course concepts\n• Programming and algorithms\n• Computer science topics\n\n**My response format:**\n1. Clear answer with inline [citations](url)\n2. References section with numbered sources\n\nAsk me anything about your courses!",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now(),
-      hasReliableSources: true,
     };
     const newId = Date.now().toString();
     const newSession: ChatSession = {
@@ -746,10 +636,9 @@ export function AIChatSection() {
           ...s,
           messages: updatedMessages,
           lastModified: Date.now(),
-          title:
-            updatedMessages.length > 1 && updatedMessages[1]?.text
-              ? updatedMessages[1].text.substring(0, 30) + '…'
-              : s.title,
+          title: updatedMessages.length > 1 && updatedMessages[1]?.text
+            ? updatedMessages[1].text.substring(0, 30) + '…'
+            : s.title,
         };
       } else {
         updated = [
@@ -763,7 +652,6 @@ export function AIChatSection() {
     localStorage.setItem('learnsphere_current_session', JSON.stringify({ id: sessionId, messages: updatedMessages }));
   };
 
-  /* ── File attach (user chat files) ── */
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -780,7 +668,6 @@ export function AIChatSection() {
     setShowFileUpload(false);
   };
 
-  /* ── Send message with RAG ── */
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if ((!inputValue.trim() && pendingFiles.length === 0) || isTyping || isProcessingFile) return;
@@ -812,8 +699,8 @@ export function AIChatSection() {
         id: (Date.now() + 1).toString(),
         type: 'ai',
         text: !isOnline
-          ? "I'm in offline mode. Please connect to the internet for AI-powered responses with proper citations."
-          : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file to enable reliable source citations.",
+          ? "I'm offline. Please connect to the internet for answers with reliable citations."
+          : "API key not configured. Please add VITE_GROQ_API_KEY to your .env file.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timestamp: Date.now(),
       };
@@ -824,12 +711,10 @@ export function AIChatSection() {
     }
 
     try {
-      // Step 1: search course materials
       setIsSearching(true);
       const { contextBlock, sources: ragSources } = await buildRAGContext(userCaption || messageText);
       setIsSearching(false);
 
-      // Step 2: extract attached file text if any
       setIsTyping(true);
       let attachedContent: string | undefined;
       if (filesToProcess.length > 0) {
@@ -842,7 +727,6 @@ export function AIChatSection() {
         attachedContent = parts.join('\n\n');
       }
 
-      // Step 3: call Groq with RAG context
       const { text: aiText, sources: finalSources } = await callGroqAPI(
         userCaption,
         updatedMessages,
@@ -858,20 +742,19 @@ export function AIChatSection() {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timestamp: Date.now(),
         sources: finalSources.length > 0 ? finalSources : undefined,
-        hasReliableSources: finalSources.some(s => s.isReliable),
       };
       const final = [...updatedMessages, aiMsg];
       setMessages(final);
       saveCurrentMessages(final);
 
     } catch (error) {
-      console.error('Error in handleSendMessage:', error);
+      console.error('Error:', error);
       setIsSearching(false);
-      setError('Failed to get a response with reliable citations. Please try again.');
+      setError('Failed to get a response. Please try again.');
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        text: "I'm having trouble finding reliable sources for your question right now. Please check your connection and try again, or rephrase your question.\n\n**Tip:** Be specific about the CS topic you're asking about so I can find the most relevant academic sources.",
+        text: "I'm having trouble finding reliable sources right now. Please try rephrasing your question or check your connection.",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timestamp: Date.now(),
       };
@@ -886,12 +769,10 @@ export function AIChatSection() {
   };
 
   const clearChat = () => { if (window.confirm('Start a new chat?')) { setPendingFiles([]); createNewSession(); } };
-
   const switchSession = (id: string) => {
     const s = sessions.find((s) => s.id === id);
     if (s) { setMessages([...s.messages]); setCurrentSessionId(s.id); setShowHistory(false); setPendingFiles([]); }
   };
-
   const deleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm('Delete this chat?')) return;
@@ -902,7 +783,6 @@ export function AIChatSection() {
     });
     if (currentSessionId === id) { setPendingFiles([]); createNewSession(); }
   };
-
   const exportChat = () => {
     const session = sessions.find((s) => s.id === currentSessionId);
     if (!session) return;
@@ -919,12 +799,10 @@ export function AIChatSection() {
   const statusLabel  = statusOnline ? 'Online' : !isAPIKeyConfigured ? 'API Key Missing' : 'Offline';
   const isBusy       = isTyping || isProcessingFile || isSearching;
 
-  /* ─── Render ──────────────────────────────────────────────────────────── */
   return (
     <section className="bg-secondary/10 min-h-[calc(100vh-80px)] flex items-center justify-center py-8 px-4">
       <div className="w-full max-w-6xl flex gap-4 h-[calc(100vh-120px)]">
 
-        {/* ── Sidebar ── */}
         <AnimatePresence>
           {showHistory && (
             <motion.aside
@@ -976,10 +854,8 @@ export function AIChatSection() {
           )}
         </AnimatePresence>
 
-        {/* ── Main chat panel ── */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden min-w-0">
 
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -995,41 +871,28 @@ export function AIChatSection() {
                     {statusOnline ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />}
                     {statusLabel}
                   </span>
-                  {statusOnline && (
-                    <>
-                      <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-600 border border-blue-200">
-                        <BookOpen className="w-2.5 h-2.5" />
-                        RAG
-                      </span>
-                      <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-green-50 text-green-600 border border-green-200">
-                        <CheckCircle className="w-2.5 h-2.5" />
-                        Verified Sources
-                      </span>
-                    </>
-                  )}
+                  <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-600 border border-blue-200">
+                    <BookOpen className="w-2.5 h-2.5" />
+                    Max 5 Citations
+                  </span>
                 </div>
-                <p className="text-xs text-gray-400">AI Learning Assistant · Cites reliable academic sources</p>
+                <p className="text-xs text-gray-400">Cites reliable sources · No Wikipedia</p>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowHistory((v) => !v)}
-                title="Chat history"
-                className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100 hover:text-dark'}`}
-              >
+              <button onClick={() => setShowHistory((v) => !v)} className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100 hover:text-dark'}`}>
                 <Menu className="w-4 h-4" />
               </button>
-              <button onClick={exportChat} title="Export chat" className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-dark transition-colors">
+              <button onClick={exportChat} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-dark transition-colors">
                 <Download className="w-4 h-4" />
               </button>
-              <button onClick={clearChat} title="New chat" className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-dark transition-colors">
+              <button onClick={clearChat} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-dark transition-colors">
                 <Sparkles className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Error banner */}
           <AnimatePresence>
             {error && (
               <motion.div
@@ -1046,7 +909,6 @@ export function AIChatSection() {
             )}
           </AnimatePresence>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-gray-50/40">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center gap-3">
@@ -1054,12 +916,9 @@ export function AIChatSection() {
                   <Zap className="w-7 h-7 text-primary/60" />
                 </div>
                 <div>
-                  <p className="font-semibold text-dark">Start a conversation with academic integrity</p>
-                  <p className="text-gray-400 text-sm mt-1">
-                    Sphere reads your course modules and cites only reliable academic sources.
-                  </p>
-                  <p className="text-gray-400 text-xs mt-2">
-                    ✅ Peer-reviewed papers · ✅ Official docs · ✅ Course materials · ❌ No Wikipedia
+                  <p className="font-semibold text-dark">Organized answers with citations</p>
+                  <p className="text-gray-400 text-sm mt-1 max-w-md">
+                    Each response includes inline citations and a numbered references section with up to 5 reliable sources.
                   </p>
                 </div>
               </div>
@@ -1067,34 +926,24 @@ export function AIChatSection() {
               messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)
             )}
 
-            {/* Searching indicator */}
             {isSearching && !isTyping && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-end gap-2.5"
-              >
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex items-end gap-2.5">
                 <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mb-1">
                   <Search className="w-3.5 h-3.5 text-primary animate-pulse" />
                 </div>
                 <div className="bg-white border border-gray-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3">
-                  <TypingDots label="Searching academic sources…" />
+                  <TypingDots label="Searching course materials…" />
                 </div>
               </motion.div>
             )}
 
-            {/* Typing indicator */}
             {isTyping && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-end gap-2.5"
-              >
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex items-end gap-2.5">
                 <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mb-1">
                   <Bot className="w-3.5 h-3.5 text-primary" />
                 </div>
                 <div className="bg-white border border-gray-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3">
-                  <TypingDots label={isProcessingFile ? 'Processing file…' : 'Finding reliable sources…'} />
+                  <TypingDots label={isProcessingFile ? 'Processing file…' : 'Citing sources…'} />
                 </div>
               </motion.div>
             )}
@@ -1102,10 +951,7 @@ export function AIChatSection() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input area */}
           <div className="px-4 pb-4 pt-3 border-t border-gray-100 bg-white flex-shrink-0">
-
-            {/* Pending files */}
             <AnimatePresence>
               {pendingFiles.length > 0 && (
                 <motion.div
@@ -1116,16 +962,10 @@ export function AIChatSection() {
                 >
                   <div className="flex flex-wrap gap-2 mb-2.5 pb-2.5 border-b border-gray-100">
                     {pendingFiles.map((file, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-1.5 bg-primary/8 border border-primary/20 text-primary rounded-lg px-2.5 py-1.5 text-xs font-medium"
-                      >
+                      <div key={idx} className="flex items-center gap-1.5 bg-primary/8 border border-primary/20 text-primary rounded-lg px-2.5 py-1.5 text-xs font-medium">
                         <FileText className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate max-w-[140px]">{file.name}</span>
-                        <button
-                          onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
-                          className="text-primary/60 hover:text-primary ml-0.5"
-                        >
+                        <button onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))} className="text-primary/60 hover:text-primary ml-0.5">
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -1135,12 +975,10 @@ export function AIChatSection() {
               )}
             </AnimatePresence>
 
-            {/* Input row */}
             <form onSubmit={handleSendMessage} className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowFileUpload((v) => !v)}
-                title="Attach file"
                 className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${
                   showFileUpload ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
@@ -1154,7 +992,7 @@ export function AIChatSection() {
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder={pendingFiles.length > 0 ? 'Add a message (optional)…' : 'Ask about CS concepts—I\'ll cite academic sources…'}
+                  placeholder="Ask about CS concepts — I'll cite up to 5 reliable sources..."
                   className="w-full bg-gray-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all border border-transparent focus:border-primary/20"
                   disabled={isBusy}
                 />
@@ -1169,7 +1007,6 @@ export function AIChatSection() {
               </button>
             </form>
 
-            {/* File panel */}
             <AnimatePresence>
               {showFileUpload && (
                 <motion.div
@@ -1180,7 +1017,7 @@ export function AIChatSection() {
                 >
                   <div className="mt-2.5 bg-gray-50 rounded-xl border border-gray-200 p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-500">Attach file for analysis</span>
+                      <span className="text-xs font-semibold text-gray-500">Attach file</span>
                       <button onClick={() => setShowFileUpload(false)} className="text-gray-400 hover:text-gray-600">
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1189,7 +1026,7 @@ export function AIChatSection() {
                       <input ref={fileInputRef} type="file" accept=".txt,.md" onChange={handleFileSelect} className="hidden" multiple />
                       <div className="border-2 border-dashed border-gray-200 hover:border-primary/40 rounded-xl p-4 text-center transition-colors bg-white">
                         <Plus className="w-5 h-5 text-gray-300 mx-auto mb-1.5" />
-                        <p className="text-xs font-medium text-gray-500">Upload TXT/MD for source analysis</p>
+                        <p className="text-xs font-medium text-gray-500">Upload TXT/MD files</p>
                         <p className="text-[10px] text-gray-400 mt-0.5">Max 10 MB each</p>
                       </div>
                     </label>
@@ -1198,12 +1035,10 @@ export function AIChatSection() {
               )}
             </AnimatePresence>
 
-            <p className="text-[10px] text-gray-400 text-center mt-2.5 leading-relaxed">
-              {statusOnline
-                ? '✓ Citing reliable sources only · Academic papers · Official docs · No Wikipedia'
-                : !isAPIKeyConfigured
-                ? 'Add VITE_GROQ_API_KEY to enable academic source citations'
-                : 'Connect to internet for reliable source citations'}
+            <p className="text-[10px] text-gray-400 text-center mt-2.5">
+              {statusOnline 
+                ? '✓ Up to 5 citations per answer · References section at bottom · No Wikipedia'
+                : 'Configure API key for reliable source citations'}
             </p>
           </div>
         </div>
