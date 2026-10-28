@@ -1,13 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>LearnSphere - Offline-First AI Learning Platform</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/index.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LearnSphere</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: { light: '#E0F2FE', DEFAULT: '#3B82F6', dark: '#1E3A8A' } }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+
+  <!-- NAVIGATION PATTERN -->
+  <nav class="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Minimalist Light Blue & White Logo -->
+        <div class="w-8 h-8 rounded-full bg-brand-light border-2 border-brand flex items-center justify-center"></div>
+        <span class="font-bold text-xl tracking-tight text-brand-dark">LearnSphere</span>
+      </div>
+      
+      <!-- VISIBILITY & FEEDBACK: Offline/Sync Status -->
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 text-sm font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Synced for Offline
+        </div>
+        <button onclick="document.getElementById('uploadModal').classList.remove('hidden')" class="bg-brand hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors shadow-sm">
+          <i class="fa-solid fa-plus mr-1"></i> Upload Module
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <!-- SEARCH PATTERN -->
+    <div class="mb-8 relative max-w-md">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+      </div>
+      <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand sm:text-sm transition-shadow" placeholder="Search modules, courses, or files...">
+    </div>
+
+    <!-- CARDS & LISTS PATTERN -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="moduleGrid">
+      
+      <!-- Example Module Card -->
+      <div class="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+        <div class="p-5 flex-grow">
+          <div class="flex items-start justify-between mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-brand">CS321</span>
+            <i class="fa-solid fa-file-pdf text-rose-500 text-xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-900 leading-tight mb-2">Concepts of Programming Languages</h3>
+          <p class="text-sm text-slate-500 mb-4">Robert W. Sebesta</p>
+          
+          <!-- Lightweight Progress Tracker -->
+          <div class="w-full bg-slate-100 rounded-full h-2 mb-1">
+            <div class="bg-brand h-2 rounded-full" style="width: 45%"></div>
+          </div>
+          <span class="text-xs text-slate-500 font-medium">45% Completed</span>
+        </div>
+        
+        <!-- MATCH THE REAL WORLD: Familiar Icons -->
+        <div class="bg-slate-50 px-5 py-3 border-t border-slate-100 flex justify-end gap-2">
+          <button class="text-slate-400 hover:text-brand transition-colors p-2 rounded" title="Download">
+            <i class="fa-solid fa-download"></i>
+          </button>
+          <button onclick="openDeleteModal('Concepts of Programming Languages')" class="text-slate-400 hover:text-red-600 transition-colors p-2 rounded" title="Delete">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL DIALOG PATTERN: Delete Confirmation -->
+  <div id="deleteModal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+      <h3 class="text-lg font-bold text-slate-900 mb-2">Delete Module?</h3>
+      <p class="text-sm text-slate-600 mb-6">Are you sure you want to delete <span id="deleteFileName" class="font-semibold"></span>? This action cannot be undone.</p>
+      <div class="flex justify-end gap-3">
+        <button onclick="document.getElementById('deleteModal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+        <button class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // HCI: User Control & Error Recovery
+    function openDeleteModal(fileName) {
+      document.getElementById('deleteFileName').textContent = fileName;
+      document.getElementById('deleteModal').classList.remove('hidden');
+    }
+    // Note: Connect your existing fetch('/api/list-files') logic to populate the #moduleGrid dynamically.
+  </script>
+</body>
 </html>
